@@ -7,71 +7,39 @@
     <div class="col-lg-8">
         <div class="card shadow-lg border-0">
             <div class="card-header bg-success text-white text-center py-3">
-                <h3 class="mb-0">Access Granted</h3>
+                <h3 class="mb-0"><i class="bi bi-unlock me-2"></i>Access Granted</h3>
             </div>
             <div class="card-body p-4">
-                <div class="text-center mb-4">
-                    <i class="bi bi-check-circle fs-1 text-success"></i>
-                    <p class="lead mt-3">Your access request has been approved</p>
-                </div>
-                
-                <div class="alert alert-success mb-4">
-                    <i class="bi bi-info-circle-fill me-2"></i>
-                    <strong>Success:</strong> The dead man's switch has been triggered, and you are a registered beneficiary for this vault.
-                </div>
-                
-                <div class="card mb-4 border">
-                    <div class="card-header">
-                        <h5 class="mb-0">Access Details</h5>
-                    </div>
-                    <div class="card-body">
-                        <dl class="row mb-0">
-                            <dt class="col-sm-4">Vault ID:</dt>
-                            <dd class="col-sm-8">{{ vault_id }}</dd>
-                            
-                            <dt class="col-sm-4">Beneficiary:</dt>
-                            <dd class="col-sm-8">{{ username }}</dd>
-                            
-                            <dt class="col-sm-4">Request ID:</dt>
-                            <dd class="col-sm-8">{{ request_id }}</dd>
-                            
-                            <dt class="col-sm-4">Status:</dt>
-                            <dd class="col-sm-8">
-                                <span class="badge bg-success">Approved</span>
-                            </dd>
-                        </dl>
-                    </div>
-                </div>
-                
-                <div class="card mb-4 border">
-                    <div class="card-header">
-                        <h5 class="mb-0">Diceware Keyphrase</h5>
-                    </div>
-                    <div class="card-body">
-                        <p class="mb-3">
-                            <strong>Note:</strong> In a real implementation, the keyphrase would be encrypted with your public key.
-                            For this prototype, we're showing a simulated result.
-                        </p>
-                        
-                        <div class="bg-light p-3 rounded" id="keyphrase">
-                            <code>{{ keyphrase }}</code>
-                        </div>
-                        
-                        <div class="d-grid mt-3">
-                            <button class="btn btn-outline-secondary btn-sm" type="button" id="copyBtn">
-                                <i class="bi bi-clipboard me-1"></i> Copy Keyphrase
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                
                 <div class="alert alert-warning mb-4">
                     <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                    <strong>Security Warning:</strong> Keep this keyphrase confidential and use it responsibly.
+                    <strong>IMPORTANT:</strong> This secret will only be shown ONCE. Save it securely.
                 </div>
                 
-                <div class="d-grid">
-                    <a href="{{ url_for('frontend_beneficiary_access') }}" class="btn btn-primary">Return to Beneficiary Portal</a>
+                <div class="text-center mb-4">
+                    <i class="bi bi-safe2-fill fs-1 text-success"></i>
+                    <p class="lead mt-3">Vault ID: <strong>{{ vault_id }}</strong></p>
+                    <p>Beneficiary: <strong>{{ username }}</strong></p>
+                    <p>Request ID: <code>{{ request_id }}</code></p>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="form-label">Reconstructed Vault Secret</label>
+                    <div class="input-group">
+                        <textarea class="form-control form-control-lg bg-light" id="secret-value" rows="4" readonly>{{ keyphrase }}</textarea>
+                        <button class="btn btn-outline-primary" type="button" id="copy-btn">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    <strong>Note:</strong> You have successfully reconstructed the vault secret.
+                    This typically contains a diceware keyphrase that can be used to decrypt additional information.
+                </div>
+                
+                <div class="d-grid gap-2 mt-4">
+                    <a href="{{ url_for('frontend_beneficiary_access') }}" class="btn btn-primary">Return to Beneficiary Access</a>
                 </div>
             </div>
         </div>
@@ -82,17 +50,62 @@
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const copyBtn = document.getElementById('copyBtn');
-        const keyphraseElement = document.getElementById('keyphrase');
+        const copyBtn = document.getElementById('copy-btn');
+        const secretValue = document.getElementById('secret-value');
         
         copyBtn.addEventListener('click', function() {
-            const keyphrase = keyphraseElement.textContent.trim();
-            navigator.clipboard.writeText(keyphrase).then(function() {
-                copyBtn.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Copied!';
-                setTimeout(function() {
-                    copyBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i> Copy Keyphrase';
-                }, 2000);
-            });
+            secretValue.select();
+            document.execCommand('copy');
+            
+            // Change button state temporarily
+            const originalHtml = copyBtn.innerHTML;
+            copyBtn.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
+            copyBtn.classList.add('btn-success');
+            copyBtn.classList.remove('btn-outline-primary');
+            
+            setTimeout(function() {
+                copyBtn.innerHTML = originalHtml;
+                copyBtn.classList.remove('btn-success');
+                copyBtn.classList.add('btn-outline-primary');
+            }, 2000);
+        });
+        
+        // Generate QR code for the secret
+        const qrContainer = document.createElement('div');
+        qrContainer.className = 'text-center mt-4';
+        qrContainer.innerHTML = `
+            <button type="button" class="btn btn-outline-secondary" id="showQrBtn">
+                <i class="bi bi-qr-code me-2"></i>Generate QR Code
+            </button>
+            <div id="qrCodeContainer" class="mt-3" style="display: none;"></div>
+        `;
+        
+        document.querySelector('.card-body').appendChild(qrContainer);
+        
+        document.getElementById('showQrBtn').addEventListener('click', function() {
+            const qrCodeContainer = document.getElementById('qrCodeContainer');
+            
+            // Toggle visibility
+            if (qrCodeContainer.style.display === 'none') {
+                qrCodeContainer.style.display = 'block';
+                this.innerHTML = '<i class="bi bi-eye-slash me-2"></i>Hide QR Code';
+                
+                // In a real implementation, generate QR code here
+                qrCodeContainer.innerHTML = `
+                    <div class="p-3 bg-light rounded">
+                        <p class="mb-2">QR Code:</p>
+                        <div class="border p-3 mb-2">
+                            <p class="text-muted">[QR Code would be generated here in production]</p>
+                        </div>
+                        <button class="btn btn-sm btn-secondary">
+                            <i class="bi bi-download me-1"></i>Download QR Code
+                        </button>
+                    </div>
+                `;
+            } else {
+                qrCodeContainer.style.display = 'none';
+                this.innerHTML = '<i class="bi bi-qr-code me-2"></i>Generate QR Code';
+            }
         });
     });
 </script>

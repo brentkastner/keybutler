@@ -27,6 +27,9 @@ class Vault(db.Model):
     vault_id = db.Column(db.String(64), unique=True, nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    # New fields for threshold management
+    threshold = db.Column(db.Integer, nullable=False, default=2)
+    total_shares = db.Column(db.Integer, nullable=False, default=2)
     shares = db.relationship('KeyShare', backref='vault', lazy=True)
     beneficiaries = db.relationship('Beneficiary', backref='vault', lazy=True)
     
@@ -40,6 +43,10 @@ class KeyShare(db.Model):
     vault_id = db.Column(db.Integer, db.ForeignKey('vault.id'), nullable=False)
     encrypted_share = db.Column(db.Text, nullable=False)
     share_index = db.Column(db.Integer, nullable=False)
+    # New field to identify share type: "system", "owner", "beneficiary"
+    share_type = db.Column(db.String(20), nullable=False, default="system")
+    # For beneficiary shares, link to the beneficiary
+    beneficiary_id = db.Column(db.Integer, db.ForeignKey('beneficiary.id'), nullable=True)
     
     def __repr__(self):
         return f'<KeyShare {self.id} for Vault {self.vault_id}>'
@@ -53,6 +60,10 @@ class Beneficiary(db.Model):
     public_key = db.Column(db.Text, nullable=False)
     notification_email = db.Column(db.String(120), nullable=False)
     threshold_index = db.Column(db.Integer, nullable=False)
+    # Add relationship to key share
+    key_share = db.relationship('KeyShare', backref='beneficiary', uselist=False)
+    # Add field to store the temporary share display status
+    share_displayed = db.Column(db.Boolean, default=False)
     
     def __repr__(self):
         return f'<Beneficiary {self.username} for Vault {self.vault_id}>'

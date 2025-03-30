@@ -1,6 +1,3 @@
-<!-- =========================================================== -->
-<!-- request_access.html - Request Access Page -->
-<!-- =========================================================== -->
 {% extends "layout.html" %}
 
 {% block title %}Request Access - Zero Trust Key Escrow Service{% endblock %}
@@ -18,24 +15,50 @@
                     <p class="lead mt-3">Vault ID: <strong>{{ vault_id }}</strong></p>
                 </div>
                 
-                <form method="post" action="{{ url_for('frontend_request_access', vault_id=vault_id) }}">
-                    <div class="mb-4">
-                        <label for="username" class="form-label">Your Beneficiary Username</label>
-                        <input type="text" class="form-control form-control-lg" id="username" name="username" required>
-                        <div class="form-text">The username assigned to you by the vault owner</div>
-                    </div>
-                    
+                <form method="post" action="{{ url_for('frontend_request_access', vault_id=vault_id) }}" id="accessForm">
                     <div class="alert alert-info mb-4">
                         <i class="bi bi-info-circle-fill me-2"></i>
                         <strong>Note:</strong> Access to this vault is only granted if:
                         <ul class="mb-0 mt-2">
-                            <li>You are a registered beneficiary for this vault</li>
+                            <li>You provide enough shares to meet the vault's threshold (typically {{ threshold|default('2') }})</li>
+                            <li>Each share is associated with a registered beneficiary</li>
                             <li>The dead man's switch has been triggered by the vault owner</li>
                         </ul>
                     </div>
                     
+                    <div id="sharesContainer">
+                        <div class="mb-4 share-input-group">
+                            <h5>Beneficiary Share 1</h5>
+                            <div class="mb-3">
+                                <label class="form-label">Beneficiary Username</label>
+                                <input type="text" class="form-control form-control-lg beneficiary-username" name="usernames[]" required>
+                                <div class="form-text">Enter the username of this beneficiary</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Key Share</label>
+                                <textarea class="form-control form-control-lg share-input" name="shares[]" rows="3" required></textarea>
+                                <div class="form-text">Enter the key share for this beneficiary</div>
+                            </div>
+                            <button type="button" class="btn btn-outline-danger remove-share-btn" style="display:none;">
+                                <i class="bi bi-trash"></i> Remove
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <button type="button" id="addShareBtn" class="btn btn-outline-secondary">
+                            <i class="bi bi-plus-circle me-2"></i>Add Another Beneficiary Share
+                        </button>
+                    </div>
+                    
+                    <div class="alert alert-warning mb-4">
+                        <i class="bi bi-info-circle-fill me-2"></i>
+                        <strong>Tip:</strong> If the vault has a threshold of {{ threshold|default('2') }}, 
+                        you'll need shares from at least {{ threshold|default('2') }} different beneficiaries.
+                    </div>
+                    
                     <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary btn-lg">Request Access</button>
+                        <button type="submit" class="btn btn-primary btn-lg">Combine Shares & Request Access</button>
                         <a href="{{ url_for('frontend_beneficiary_access') }}" class="btn btn-outline-secondary">Back</a>
                     </div>
                 </form>
@@ -43,4 +66,137 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const sharesContainer = document.getElementById('sharesContainer');
+        const addShareBtn = document.getElementById('addShareBtn');
+        let shareCount = 1;
+        
+        // Add QR code scanner to share inputs
+        const addQRScannerTo = (textarea) => {
+            const scanBtnContainer = document.createElement('div');
+            scanBtnContainer.className = 'mt-2';
+            scanBtnContainer.innerHTML = `
+                <button type="button" class="btn btn-outline-secondary qr-scan-btn">
+                    <i class="bi bi-qr-code-scan me-1"></i> Scan QR Code
+                </button>
+            `;
+            
+            textarea.parentNode.appendChild(scanBtnContainer);
+            
+            // QR code scanner would be implemented here in a production environment
+            scanBtnContainer.querySelector('.qr-scan-btn').addEventListener('click', function() {
+                alert('QR code scanning would be implemented here in production.');
+            });
+        };
+        
+        // Add scanner to the first share input
+        document.querySelectorAll('.share-input').forEach(input => {
+            addQRScannerTo(input);
+        });
+        
+        // Function to add new share input
+        addShareBtn.addEventListener('click', function() {
+            shareCount++;
+            
+            const newShareGroup = document.createElement('div');
+            newShareGroup.className = 'mb-4 share-input-group';
+            newShareGroup.innerHTML = `
+                <h5>Beneficiary Share ${shareCount}</h5>
+                <div class="mb-3">
+                    <label class="form-label">Beneficiary Username</label>
+                    <input type="text" class="form-control form-control-lg beneficiary-username" name="usernames[]" required>
+                    <div class="form-text">Enter the username of this beneficiary</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Key Share</label>
+                    <textarea class="form-control form-control-lg share-input" name="shares[]" rows="3" required></textarea>
+                    <div class="form-text">Enter the key share for this beneficiary</div>
+                </div>
+                <button type="button" class="btn btn-outline-danger remove-share-btn">
+                    <i class="bi bi-trash"></i> Remove
+                </button>
+            `;
+            
+            sharesContainer.appendChild(newShareGroup);
+            
+            // Add QR scanner to the new textarea
+            addQRScannerTo(newShareGroup.querySelector('.share-input'));
+            
+            // Show remove buttons if more than one share
+            document.querySelectorAll('.remove-share-btn').forEach(btn => {
+                btn.style.display = shareCount > 1 ? 'block' : 'none';
+            });
+        });
+        
+        // Handle removing shares
+        sharesContainer.addEventListener('click', function(e) {
+            if (e.target.classList.contains('remove-share-btn') || e.target.closest('.remove-share-btn')) {
+                const btn = e.target.classList.contains('remove-share-btn') ? e.target : e.target.closest('.remove-share-btn');
+                const shareGroup = btn.closest('.share-input-group');
+                
+                shareGroup.remove();
+                shareCount--;
+                
+                // Update share labels
+                document.querySelectorAll('.share-input-group').forEach((group, index) => {
+                    group.querySelector('h5').textContent = `Beneficiary Share ${index + 1}`;
+                });
+                
+                // Hide remove buttons if only one share left
+                document.querySelectorAll('.remove-share-btn').forEach(btn => {
+                    btn.style.display = shareCount > 1 ? 'block' : 'none';
+                });
+            }
+        });
+        
+        // Form validation
+        document.getElementById('accessForm').addEventListener('submit', function(e) {
+            const usernames = document.querySelectorAll('.beneficiary-username');
+            const shares = document.querySelectorAll('.share-input');
+            let valid = true;
+            
+            // Check all usernames and shares are filled
+            usernames.forEach((username, index) => {
+                if (!username.value.trim()) {
+                    valid = false;
+                    username.classList.add('is-invalid');
+                    
+                    // Add error message if not exists
+                    if (!username.nextElementSibling || !username.nextElementSibling.classList.contains('invalid-feedback')) {
+                        const feedback = document.createElement('div');
+                        feedback.className = 'invalid-feedback';
+                        feedback.textContent = 'Beneficiary username is required';
+                        username.parentNode.insertBefore(feedback, username.nextSibling);
+                    }
+                } else {
+                    username.classList.remove('is-invalid');
+                }
+                
+                if (!shares[index].value.trim()) {
+                    valid = false;
+                    shares[index].classList.add('is-invalid');
+                    
+                    // Add error message if not exists
+                    if (!shares[index].nextElementSibling || !shares[index].nextElementSibling.classList.contains('invalid-feedback')) {
+                        const feedback = document.createElement('div');
+                        feedback.className = 'invalid-feedback';
+                        feedback.textContent = 'Key share is required';
+                        shares[index].parentNode.insertBefore(feedback, shares[index].nextSibling);
+                    }
+                } else {
+                    shares[index].classList.remove('is-invalid');
+                }
+            });
+            
+            if (!valid) {
+                e.preventDefault();
+                alert('Please fill in all required fields.');
+            }
+        });
+    });
+</script>
 {% endblock %}

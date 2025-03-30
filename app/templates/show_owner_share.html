@@ -1,0 +1,171 @@
+{% extends "layout.html" %}
+
+{% block title %}Vault Created - Zero Trust Key Escrow Service{% endblock %}
+
+{% block extra_css %}
+<style>
+    .share-display {
+        font-family: monospace;
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        border: 1px solid #ddd;
+        word-break: break-all;
+        max-width: 100%;
+        overflow-x: auto;
+    }
+    .share-qr {
+        width: 200px;
+        height: 200px;
+        margin: 0 auto;
+        background-color: #f8f9fa;
+        border: 1px solid #ddd;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .print-only {
+        display: none;
+    }
+    @media print {
+        .no-print {
+            display: none;
+        }
+        .print-only {
+            display: block;
+        }
+        .share-display {
+            border: 1px solid #000;
+            padding: 10px;
+            margin: 20px 0;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow-lg border-0">
+            <div class="card-header bg-success text-white text-center py-3">
+                <h3 class="mb-0">Vault Created Successfully</h3>
+            </div>
+            <div class="card-body p-4">
+                <div class="alert alert-warning mb-4">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <strong>IMPORTANT:</strong> Your owner share is displayed below. Please save it securely. It will never be shown again!
+                </div>
+                
+                <div class="text-center mb-4">
+                    <i class="bi bi-key fs-1 text-success"></i>
+                    <p class="lead mt-3">Vault ID: <strong>{{ vault_id }}</strong></p>
+                </div>
+                
+                <div class="row align-items-center mb-4">
+                    <div class="col-md-6 text-center mb-4 mb-md-0">
+                        <!-- In a real implementation, generate a QR code of the share -->
+                        <div class="share-qr" id="shareQR">
+                            <div>QR Code of Share</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h5>Your Owner Share:</h5>
+                        <div class="share-display mb-3" id="shareText">{{ owner_share }}</div>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-outline-secondary btn-sm" type="button" id="copyShare">
+                                <i class="bi bi-clipboard me-1"></i> Copy Share
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm" type="button" id="printShare">
+                                <i class="bi bi-printer me-1"></i> Print Share
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Share Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <p>Your vault uses a threshold secret sharing scheme:</p>
+                        <ul>
+                            <li><strong>Total Shares:</strong> {{ total_shares }}</li>
+                            <li><strong>Threshold Required:</strong> {{ threshold }}</li>
+                            <li><strong>Share Types:</strong> 
+                                <ul>
+                                    <li>1 System Share (stored securely)</li>
+                                    <li>1 Owner Share (displayed above)</li>
+                                    {% if total_shares > 2 %}
+                                    <li>{{ total_shares - 2 }} Beneficiary Share(s)</li>
+                                    {% endif %}
+                                </ul>
+                            </li>
+                        </ul>
+                        <p>The system requires at least {{ threshold }} shares to reconstruct your secret. This provides security while ensuring availability if some shares are lost.</p>
+                    </div>
+                </div>
+                
+                <div class="alert alert-info mb-4">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    <strong>Next Step:</strong> Add beneficiaries to your vault. Each beneficiary will receive their own unique share.
+                </div>
+                
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('frontend_view_vault', vault_id=vault_id) }}" class="btn btn-primary btn-lg">Continue to Vault</a>
+                </div>
+                
+                <!-- Print-only section -->
+                <div class="print-only">
+                    <h1>Vault Owner Share</h1>
+                    <p>Vault ID: {{ vault_id }}</p>
+                    <p>Created: {{ now.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+                    <div class="share-display mb-3">{{ owner_share }}</div>
+                    <p><strong>Important:</strong> Store this share in a secure location. It will be needed if you ever need to recover your vault's diceware keyphrase.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.4.4/build/qrcode.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const shareText = document.getElementById('shareText').textContent;
+        const shareQR = document.getElementById('shareQR');
+        const copyBtn = document.getElementById('copyShare');
+        const printBtn = document.getElementById('printShare');
+        
+        // Generate QR code
+        QRCode.toCanvas(shareQR, shareText, {
+            width: 200,
+            margin: 1,
+            color: {
+                dark: '#000000',
+                light: '#ffffff'
+            }
+        }, function(error) {
+            if (error) {
+                console.error(error);
+                shareQR.innerHTML = 'Error generating QR code';
+            }
+        });
+        
+        // Copy button functionality
+        copyBtn.addEventListener('click', function() {
+            navigator.clipboard.writeText(shareText).then(function() {
+                copyBtn.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Copied!';
+                setTimeout(function() {
+                    copyBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i> Copy Share';
+                }, 2000);
+            });
+        });
+        
+        // Print button functionality
+        printBtn.addEventListener('click', function() {
+            window.print();
+        });
+    });
+</script>
+{% endblock %}

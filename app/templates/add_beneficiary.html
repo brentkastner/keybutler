@@ -19,12 +19,42 @@
     <div class="col-lg-8">
         <div class="card shadow-lg border-0">
             <div class="card-body p-4">
-                <div class="alert alert-info mb-4">
-                    <i class="bi bi-info-circle-fill me-2"></i>
-                    <strong>Note:</strong> Beneficiaries will gain access to your vault's diceware keyphrase if the dead man's switch is triggered.
-                </div>
-                
                 <form method="post" action="{{ url_for('frontend_add_beneficiary', vault_id=vault.vault_id) }}">
+                    <div class="alert alert-info mb-4">
+                        <i class="bi bi-info-circle-fill me-2"></i>
+                        <strong>Note:</strong> Adding a beneficiary requires redistributing the vault's secret shares. You will need to provide your owner share to complete this process. If there are existing beneficiaries, you'll also need to provide their shares.
+                    </div>
+                    
+                    {% if beneficiaries and beneficiaries|length > 0 %}
+                    <div class="mb-4">
+                        <h4 class="mb-3">Existing Beneficiary Shares</h4>
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            <strong>Important:</strong> Shares from existing beneficiaries are needed to properly redistribute keys. Please collect these shares from the respective beneficiaries.
+                        </div>
+                        
+                        <div class="list-group mb-3">
+                            {% for beneficiary in beneficiaries %}
+                            <div class="list-group-item p-4">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h5 class="mb-1">{{ beneficiary.username }}</h5>
+                                        <small class="text-muted">Priority: {{ beneficiary.threshold_index }}</small>
+                                    </div>
+                                    <span class="badge bg-secondary">Beneficiary #{{ loop.index }}</span>
+                                </div>
+                                
+                                <div class="mt-3">
+                                    <label for="beneficiary_share_{{ beneficiary.id }}" class="form-label">Share for {{ beneficiary.username }}</label>
+                                    <textarea class="form-control" id="beneficiary_share_{{ beneficiary.id }}" name="beneficiary_share_{{ beneficiary.id }}" rows="2" required></textarea>
+                                    <div class="form-text">Enter the share provided by this beneficiary</div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
                     <div class="mb-3">
                         <label for="username" class="form-label">Beneficiary Username</label>
                         <input type="text" class="form-control" id="username" name="username" required>
@@ -43,7 +73,7 @@
                         <div class="form-text">The beneficiary's PGP/GPG public key used to encrypt the shared key</div>
                     </div>
                     
-                    <div class="mb-4">
+                    <div class="mb-3">
                         <label for="threshold_index" class="form-label">Threshold Index</label>
                         <select class="form-select" id="threshold_index" name="threshold_index">
                             <option value="1">1 - Highest Priority</option>
@@ -53,8 +83,24 @@
                         <div class="form-text">Determines priority when multiple beneficiaries are present</div>
                     </div>
                     
+                    <div class="mb-4">
+                        <label for="owner_share" class="form-label">Your Owner Share</label>
+                        <textarea class="form-control" id="owner_share" name="owner_share" rows="3" required></textarea>
+                        <div class="form-text">
+                            Paste your owner share here. This was provided when you created the vault.
+                            <strong>Note:</strong> We never store your owner share - it's only used for this operation.
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-primary mb-3">
+                        <i class="bi bi-shield-lock-fill me-2"></i>
+                        <strong>Security Note:</strong> All shares are required to properly redistribute the vault secret. Missing shares will cause the operation to fail.
+                    </div>
+                    
                     <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary btn-lg">Add Beneficiary</button>
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-plus-circle me-2"></i>Add Beneficiary and Redistribute Shares
+                        </button>
                         <a href="{{ url_for('frontend_view_vault', vault_id=vault.vault_id) }}" class="btn btn-outline-secondary">Cancel</a>
                     </div>
                 </form>
@@ -67,37 +113,100 @@
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Demo public key generation placeholder
+        // Add file upload for public key
         const publicKeyTextarea = document.getElementById('public_key');
-        const generateKeyBtn = document.createElement('button');
-        generateKeyBtn.className = 'btn btn-sm btn-outline-secondary mt-2';
-        generateKeyBtn.innerHTML = '<i class="bi bi-key me-1"></i> Generate Demo Key';
-        generateKeyBtn.type = 'button';
+        const fileUploadContainer = document.createElement('div');
+        fileUploadContainer.className = 'mt-2';
+        fileUploadContainer.innerHTML = `
+            <label for="public_key_file" class="form-label">Or upload public key file:</label>
+            <input class="form-control" type="file" id="public_key_file">
+        `;
         
-        generateKeyBtn.addEventListener('click', function() {
-            // This is just a placeholder for demo purposes
-            // In a real application, users would paste their actual PGP keys
-            const demoKey = 
-`-----BEGIN PGP PUBLIC KEY BLOCK-----
-Version: OpenPGP.js v4.10.10
-Comment: https://openpgpjs.org
-
-xjMEYmqLvBYJKwYBBAHaRw8BAQdAJGivfoI5qNFJ97gCQ8GzWiA4LwO2Thjj
-RX9vIwE+xBbNK0RlbW8gS2V5IDxkZW1vLmJlbmVmaWNpYXJ5QGV4YW1wbGUu
-Y29tPsKMBBAWCgAdBQJiaou8BAsJBwgDFQgKBBYAAgECGQECGwMCHgEAIQkQ
-emVqn5x1a50WIQTopLzGYcJKcpBERYF6ZWqfnHVrnQz7AP9ldOgANoCIwfoW
-iDUOZHrXMUOL8WWnrD2iBPiMr4VfwQD/bCoQIJBw/CgC40u1a1HZfFLIotOG
-a4+qcLwIvLO5rgHOOARiaou8EgorsGAEAfcFAQgB9wUCYmqLvAQACgkQemVq
-n5x1a50BJAD5AZCHxKcGXTxKPtaNJzgf8c0FWV+uyd7H7beBjF53hfUA/iyI
-Haha9CVZcbHjI240/qQvNwRfwrMr3JgHdCz7krgBwsB2BBgWCAAqBQJiaou8
-CRB6ZWqfnHVrnQIbDAUJHhM4AAQLCQcIAxUICgQWAAIBAgIeAQAhCRB6ZWqf
-nHVrnRYhBOikvMZhwkpykERFgXpd==
------END PGP PUBLIC KEY BLOCK-----`;
-            publicKeyTextarea.value = demoKey;
+        publicKeyTextarea.parentNode.insertBefore(fileUploadContainer, publicKeyTextarea.nextSibling);
+        
+        const fileInput = document.getElementById('public_key_file');
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    publicKeyTextarea.value = e.target.result;
+                };
+                reader.readAsText(file);
+            }
         });
         
-        // Append the button after the textarea
-        publicKeyTextarea.parentNode.insertBefore(generateKeyBtn, publicKeyTextarea.nextSibling);
+        // Add QR code scanner for owner share and beneficiary shares
+        const addQRScannerTo = (textareaId) => {
+            const textarea = document.getElementById(textareaId);
+            if (!textarea) return;
+            
+            const scanBtnContainer = document.createElement('div');
+            scanBtnContainer.className = 'mt-2';
+            scanBtnContainer.innerHTML = `
+                <button type="button" class="btn btn-outline-secondary qr-scan-btn" data-target="${textareaId}">
+                    <i class="bi bi-qr-code-scan me-1"></i> Scan QR Code
+                </button>
+            `;
+            
+            textarea.parentNode.insertBefore(scanBtnContainer, textarea.nextSibling);
+        };
+        
+        // Add to owner share
+        addQRScannerTo('owner_share');
+        
+        // Add to all beneficiary shares
+        document.querySelectorAll('textarea[id^="beneficiary_share_"]').forEach(textarea => {
+            addQRScannerTo(textarea.id);
+        });
+        
+        // Handle QR code scanning (simulated for prototype)
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('qr-scan-btn') || e.target.closest('.qr-scan-btn')) {
+                const btn = e.target.classList.contains('qr-scan-btn') ? e.target : e.target.closest('.qr-scan-btn');
+                const targetId = btn.dataset.target;
+                alert(`QR code scanning for ${targetId} would be implemented here in production.`);
+            }
+        });
+        
+        // Form validation
+        const form = document.querySelector('form');
+        form.addEventListener('submit', function(e) {
+            const requiredFields = document.querySelectorAll('textarea[required], input[required]');
+            let allValid = true;
+            
+            requiredFields.forEach(field => {
+                if (!field.value.trim()) {
+                    allValid = false;
+                    field.classList.add('is-invalid');
+                    
+                    // Add error message if not exists
+                    if (!field.nextElementSibling || !field.nextElementSibling.classList.contains('invalid-feedback')) {
+                        const feedback = document.createElement('div');
+                        feedback.className = 'invalid-feedback';
+                        feedback.textContent = 'This field is required';
+                        field.parentNode.insertBefore(feedback, field.nextSibling);
+                    }
+                } else {
+                    field.classList.remove('is-invalid');
+                }
+            });
+            
+            if (!allValid) {
+                e.preventDefault();
+                const errorAlert = document.createElement('div');
+                errorAlert.className = 'alert alert-danger mt-3';
+                errorAlert.innerHTML = '<i class="bi bi-exclamation-circle-fill me-2"></i>Please fill in all required fields';
+                
+                // Insert at top of form if not exists
+                if (!form.querySelector('.alert-danger')) {
+                    form.insertBefore(errorAlert, form.firstChild);
+                }
+                
+                // Scroll to first error
+                document.querySelector('.is-invalid').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        });
     });
 </script>
 {% endblock %}

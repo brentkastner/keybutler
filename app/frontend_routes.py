@@ -8,6 +8,7 @@ from flask import Flask, render_template, redirect, url_for, request, session, f
 from functools import wraps
 import json, base64
 from models import User, Vault, KeyShare, Beneficiary, DeadMansSwitch
+from crypto import ShamirSecretSharing, derive_key, decrypt_data
 from app import db
 
 
@@ -244,76 +245,63 @@ def register_frontend_routes(app, db):
     @login_required_frontend
     @totp_required_frontend
     def frontend_create_vault():
-        """Create a new vault."""
-        from crypto import ShamirSecretSharing, derive_key, encrypt_data
+        """Create a new vault with real security."""
+        import requests
         import json
-        import base64
         
         if request.method == 'POST':
             vault_id = request.form.get('vault_id')
             diceware_keyphrase = request.form.get('diceware_keyphrase')
-            num_shares = int(request.form.get('num_shares', 3))
-            threshold = int(request.form.get('threshold', 2))
             
             # Validation
             if not vault_id or not diceware_keyphrase:
                 flash('Vault ID and diceware keyphrase are required.', 'danger')
                 return render_template('create_vault.html')
             
-            if threshold > num_shares:
-                flash('Threshold cannot be greater than the number of shares.', 'danger')
-                return render_template('create_vault.html')
+            # Create the vault through the API
+            api_url = url_for('create_vault', _external=True)
+            headers = {'Content-Type': 'application/json'}
             
-            user_id = session.get('user_id')
+            # Include session cookie to maintain authentication
+            cookies = {key: value for key, value in request.cookies.items()}
             
-            # Check if vault already exists
-            existing_vault = Vault.query.filter_by(vault_id=vault_id).first()
-            if existing_vault:
-                flash('A vault with this ID already exists.', 'danger')
-                return render_template('create_vault.html')
+            payload = {
+                'vault_id': vault_id,
+                'diceware_keyphrase': diceware_keyphrase
+            }
             
-            # Create vault
-            vault = Vault(vault_id=vault_id, user_id=user_id)
-            db.session.add(vault)
-            db.session.flush()
+            response = requests.post(
+                api_url, 
+                headers=headers,
+                cookies=cookies,
+                json=payload,
+                verify=False  # For development only - remove in production!
+            )
             
-            # Create shares
-            shares = ShamirSecretSharing.create_shares(diceware_keyphrase, num_shares, threshold)
-            
-            # Store encrypted shares
-            for i, share_value in shares:
-                # Derive encryption key
-                share_key, salt = derive_key(f"share_{i}_{vault_id}")
+            if response.status_code == 201:
+                # Success
+                data = response.json()
                 
-                # Encrypt share
-                encrypted_share = json.dumps({
-                    "salt": base64.b64encode(salt).decode('utf-8'),
-                    "share": encrypt_data(share_value, share_key)
-                })
-                
-                # Store share
-                key_share = KeyShare(
-                    vault_id=vault.id,
-                    encrypted_share=encrypted_share,
-                    share_index=i
+                # Now we have the vault data including the owner's share
+                return render_template(
+                    'show_owner_share.html',
+                    vault_id=data['vault_id'],
+                    owner_share=data['owner_share'],
+                    total_shares=data['num_shares'],
+                    threshold=data['threshold']
                 )
-                db.session.add(key_share)
-            
-            db.session.commit()
-            
-            # Log event
-            from audit import log_event
-            log_event(user_id, "vault_created", {
-                "vault_id": vault_id,
-                "num_shares": num_shares,
-                "threshold": threshold
-            })
-            
-            flash('Vault created successfully.', 'success')
-            return redirect(url_for('frontend_dashboard'))
+            else:
+                # Error handling
+                try:
+                    error_data = response.json()
+                    flash(f"Error: {error_data.get('error', 'Unknown error')}", 'danger')
+                except:
+                    flash(f"Error: Could not create vault. Status code: {response.status_code}", 'danger')
+                
+                return render_template('create_vault.html')
         
         return render_template('create_vault.html')
-    
+
     @app.route('/vault/<vault_id>')
     @login_required_frontend
     @totp_required_frontend
@@ -337,7 +325,10 @@ def register_frontend_routes(app, db):
     @login_required_frontend
     @totp_required_frontend
     def frontend_add_beneficiary(vault_id):
-        """Add a beneficiary to a vault."""
+        """Add a beneficiary to a vault with secure share management."""
+        import requests
+        import json
+        
         user_id = session.get('user_id')
         
         # Find the vault
@@ -346,48 +337,134 @@ def register_frontend_routes(app, db):
             flash('Vault not found or you don\'t have access.', 'danger')
             return redirect(url_for('frontend_dashboard'))
         
+        # Get existing beneficiaries for display in the form
+        beneficiaries = Beneficiary.query.filter_by(vault_id=vault.id).all()
+        
         if request.method == 'POST':
+            # Get basic beneficiary information
             beneficiary_username = request.form.get('username')
             beneficiary_email = request.form.get('email')
             beneficiary_public_key = request.form.get('public_key')
             threshold_index = int(request.form.get('threshold_index', 1))
+            owner_share = request.form.get('owner_share')
             
-            # Validation
-            if not all([beneficiary_username, beneficiary_email, beneficiary_public_key]):
-                flash('All fields are required.', 'danger')
-                return render_template('add_beneficiary.html', vault=vault)
+            # Validation for basic fields
+            if not all([beneficiary_username, beneficiary_email, beneficiary_public_key, owner_share]):
+                flash('All fields are required, including your owner share.', 'danger')
+                return render_template('add_beneficiary.html', vault=vault, beneficiaries=beneficiaries)
             
-            # Check if beneficiary already exists
-            existing_beneficiary = Beneficiary.query.filter_by(
-                vault_id=vault.id, username=beneficiary_username).first()
-            if existing_beneficiary:
-                flash('Beneficiary already exists for this vault.', 'danger')
-                return render_template('add_beneficiary.html', vault=vault)
+            # Collect shares from existing beneficiaries
+            beneficiary_shares = {}
+            for beneficiary in beneficiaries:
+                share_key = f"beneficiary_share_{beneficiary.id}"
+                beneficiary_share = request.form.get(share_key)
+                
+                if not beneficiary_share:
+                    flash(f'Share for beneficiary {beneficiary.username} is required.', 'danger')
+                    return render_template('add_beneficiary.html', vault=vault, beneficiaries=beneficiaries)
+                
+                # Get the share index if available
+                share_index = None
+                if beneficiary.key_share:
+                    share_index = beneficiary.key_share.share_index
+                
+                beneficiary_shares[beneficiary.id] = {
+                    'username': beneficiary.username,
+                    'share_index': share_index,
+                    'share_value': beneficiary_share
+                }
             
-            # Create beneficiary
-            beneficiary = Beneficiary(
-                vault_id=vault.id,
-                username=beneficiary_username,
-                notification_email=beneficiary_email,
-                public_key=beneficiary_public_key,
-                threshold_index=threshold_index
-            )
-            db.session.add(beneficiary)
-            db.session.commit()
+            # Add the beneficiary through the API
+            api_url = url_for('add_beneficiary', _external=True)
+            headers = {'Content-Type': 'application/json'}
             
-            # Log event
-            from audit import log_event
-            log_event(user_id, "beneficiary_added", {
-                "vault_id": vault_id,
-                "beneficiary_username": beneficiary_username,
-                "threshold_index": threshold_index
-            })
+            # Include session cookie to maintain authentication
+            cookies = {key: value for key, value in request.cookies.items()}
             
-            flash('Beneficiary added successfully.', 'success')
-            return redirect(url_for('frontend_view_vault', vault_id=vault_id))
+            # Prepare payload with owner share and beneficiary shares
+            payload = {
+                'vault_id': vault_id,
+                'username': beneficiary_username,
+                'email': beneficiary_email,
+                'public_key': beneficiary_public_key,
+                'threshold_index': threshold_index,
+                'owner_share': owner_share,
+                'beneficiary_shares': beneficiary_shares
+            }
+            
+            try:
+                # Debug logging before sending request
+                print(f"Sending request to {api_url}")
+                print(f"Payload: {json.dumps(payload, indent=2)}")
+                
+                response = requests.post(
+                    api_url, 
+                    headers=headers,
+                    cookies=cookies,
+                    json=payload,
+                    verify=False  # For development only - remove in production!
+                )
+                
+                # Debug logging after receiving response
+                print(f"Response status: {response.status_code}")
+                print(f"Response headers: {response.headers}")
+                print(f"Response content preview: {response.content[:500]}")
+                
+                if response.status_code == 201:
+                    # Success
+                    data = response.json()
+                    
+                    # Format the existing beneficiary shares for display
+                    existing_beneficiaries_data = []
+                    for beneficiary_data in data.get('existing_beneficiary_shares', []):
+                        existing_beneficiaries_data.append({
+                            'username': beneficiary_data['username'],
+                            'share': beneficiary_data['share']
+                        })
+                    
+                    # Log successful beneficiary addition
+                    print(f"Successfully added beneficiary {beneficiary_username} to vault {vault_id}")
+                    print(f"Total shares: {data['total_shares']}, Threshold: {data['threshold']}")
+                    
+                    # Now we have the data including all shares
+                    return render_template(
+                        'show_all_shares.html',
+                        vault_id=data['vault_id'],
+                        beneficiary_username=data['beneficiary_username'],
+                        beneficiary_share=data['beneficiary_share'],
+                        owner_share=data['owner_share'],
+                        existing_beneficiaries=existing_beneficiaries_data,
+                        total_shares=data['total_shares'],
+                        threshold=data['threshold']
+                    )
+                else:
+                    # Error handling
+                    try:
+                        error_data = response.json()
+                        error_message = error_data.get('error', 'Unknown error')
+                        
+                        # Log detailed error for debugging
+                        print(f"API Error: {error_message}")
+                        print(f"Response status: {response.status_code}")
+                        print(f"Response content: {response.content.decode()[:500]}")
+                        
+                        flash(f"Error: {error_message}", 'danger')
+                    except Exception as parse_err:
+                        print(f"Error parsing API response: {str(parse_err)}")
+                        print(f"Raw response: {response.content.decode()[:500]}")
+                        flash(f"Error: Could not add beneficiary. Status code: {response.status_code}", 'danger')
+                    
+                    return render_template('add_beneficiary.html', vault=vault, beneficiaries=beneficiaries)
+            except Exception as e:
+                print(f"Exception in frontend_add_beneficiary: {str(e)}")
+                import traceback
+                print(traceback.format_exc())
+                flash(f"Error: {str(e)}", 'danger')
+                return render_template('add_beneficiary.html', vault=vault, beneficiaries=beneficiaries)
         
-        return render_template('add_beneficiary.html', vault=vault)
-    
+        # GET request - display the form
+        return render_template('add_beneficiary.html', vault=vault, beneficiaries=beneficiaries)
+
     @app.route('/switch-settings', methods=['GET', 'POST'])
     @login_required_frontend
     @totp_required_frontend
@@ -427,7 +504,7 @@ def register_frontend_routes(app, db):
     
     @app.route('/beneficiary-access/<vault_id>', methods=['GET', 'POST'])
     def frontend_request_access(vault_id):
-        """Request access to a vault as a beneficiary."""
+        """Request access to a vault by providing multiple beneficiary shares."""
         import secrets
         
         # Find the vault
@@ -437,19 +514,25 @@ def register_frontend_routes(app, db):
             return redirect(url_for('frontend_beneficiary_access'))
         
         if request.method == 'POST':
-            username = request.form.get('username')
+            # Get all submitted usernames and shares
+            usernames = request.form.getlist('usernames[]')
+            shares = request.form.getlist('shares[]')
             
-            # Find the beneficiary
-            beneficiary = Beneficiary.query.filter_by(vault_id=vault.id, username=username).first()
-            if not beneficiary:
-                flash('You are not a beneficiary of this vault.', 'danger')
-                return render_template('request_access.html', vault_id=vault_id)
+            # Validate input
+            if not usernames or not shares or len(usernames) != len(shares):
+                flash('Invalid request. Please provide matching usernames and shares.', 'danger')
+                return render_template('request_access.html', vault_id=vault_id, threshold=vault.threshold)
+            
+            # Check for empty values
+            if any(not username.strip() for username in usernames) or any(not share.strip() for share in shares):
+                flash('All username and share fields must be filled.', 'danger')
+                return render_template('request_access.html', vault_id=vault_id, threshold=vault.threshold)
             
             # Check if the dead man's switch has been triggered
             switch = DeadMansSwitch.query.filter_by(user_id=vault.user_id).first()
             if not switch or switch.status != 'triggered':
                 flash('Access to this vault is not available at this time.', 'danger')
-                return render_template('request_access.html', vault_id=vault_id)
+                return render_template('request_access.html', vault_id=vault_id, threshold=vault.threshold)
             
             # Generate request ID
             request_id = secrets.token_hex(16)
@@ -458,52 +541,94 @@ def register_frontend_routes(app, db):
             from audit import log_event
             log_event(None, "access_requested", {
                 "vault_id": vault_id,
-                "beneficiary_username": username
+                "beneficiary_count": len(usernames)
             })
             
             # Reconstruct the secret
             try:
-                # Get all shares for this vault
-                shares = KeyShare.query.filter_by(vault_id=vault.id).all()
+                # Get the system share
+                system_share = KeyShare.query.filter_by(vault_id=vault.id, share_type="system").first()
                 
-                # Decrypt each share
-                decrypted_shares = []
-                for share in shares:
-                    # Parse the encrypted share data
-                    share_data = json.loads(share.encrypted_share)
-                    salt = base64.b64decode(share_data['salt'])
-                    encrypted_share = share_data['share']
+                # Verify we have the system share
+                if not system_share:
+                    flash('Error: System share not found.', 'danger')
+                    return render_template('request_access.html', vault_id=vault_id, threshold=vault.threshold)
+                
+                # Decrypt the system share
+                share_data = json.loads(system_share.encrypted_share)
+                salt = base64.b64decode(share_data['salt'])
+                share_key, _ = derive_key(f"share_{system_share.share_index}_{vault_id}", salt)
+                decrypted_system_share = decrypt_data(share_data['share'], share_key)
+                
+                # Prepare shares for reconstruction
+                shares_for_reconstruction = [
+                    (system_share.share_index, decrypted_system_share)
+                ]
+                
+                # Look up each beneficiary and add their share with the correct index
+                beneficiary_names = []
+                
+                for i, (username, share_value) in enumerate(zip(usernames, shares)):
+                    # Find the beneficiary
+                    beneficiary = Beneficiary.query.filter_by(vault_id=vault.id, username=username.strip()).first()
                     
-                    # Derive the key for this share
-                    from crypto import derive_key, decrypt_data
-                    share_key, _ = derive_key(f"share_{share.share_index}_{vault_id}", salt)
+                    if not beneficiary:
+                        flash(f'Beneficiary "{username}" is not registered for this vault.', 'danger')
+                        return render_template('request_access.html', vault_id=vault_id, threshold=vault.threshold)
                     
-                    # Decrypt the share
-                    decrypted_share = decrypt_data(encrypted_share, share_key)
-                    decrypted_shares.append((share.share_index, decrypted_share))
+                    # Get the correct share index
+                    if not beneficiary.key_share:
+                        flash(f'Share information missing for beneficiary "{username}".', 'danger')
+                        return render_template('request_access.html', vault_id=vault_id, threshold=vault.threshold)
+                    
+                    # Add to our list with the correct index
+                    share_index = beneficiary.key_share.share_index
+                    shares_for_reconstruction.append((share_index, share_value.strip()))
+                    
+                    # Collect beneficiary names for display
+                    beneficiary_names.append(username)
+                    
+                    # Debug info
+                    print(f"Added share for beneficiary {username} with index {share_index}")
                 
-                # Reconstruct the secret using Shamir's Secret Sharing
-                from crypto import ShamirSecretSharing
-                # Use a threshold (typically half of the shares + 1)
-                threshold = (len(shares) // 2) + 1
-                diceware_keyphrase = ShamirSecretSharing.reconstruct_secret(decrypted_shares, threshold)
+                # Check if we have enough shares to meet the threshold
+                if len(shares_for_reconstruction) < vault.threshold:
+                    flash(f'Not enough shares provided. You need at least {vault.threshold}, but only provided {len(shares_for_reconstruction) - 1} beneficiary shares.', 'warning')
+                    return render_template('request_access.html', vault_id=vault_id, threshold=vault.threshold)
                 
-                # In a real implementation, you would encrypt this with the beneficiary's public key
-                # For the prototype, we'll just pass it directly
+                # Debug output
+                print(f"Reconstructing secret with {len(shares_for_reconstruction)} shares (threshold={vault.threshold})")
+                for i, (idx, _) in enumerate(shares_for_reconstruction):
+                    print(f"  Share {i}: index={idx}")
                 
-                return render_template(
-                    'access_granted.html',
-                    vault_id=vault_id,
-                    username=username,
-                    request_id=request_id,
-                    keyphrase=diceware_keyphrase
-                )
+                # We have enough shares, reconstruct the secret
+                try:
+                    diceware_keyphrase = ShamirSecretSharing.reconstruct_secret(
+                        shares_for_reconstruction, 
+                        vault.threshold
+                    )
+                    
+                    # Success! Return the reconstructed key
+                    return render_template(
+                        'access_granted.html',
+                        vault_id=vault_id,
+                        username=", ".join(beneficiary_names),
+                        request_id=request_id,
+                        keyphrase=diceware_keyphrase
+                    )
+                except ValueError as e:
+                    # If reconstruction fails, show a helpful error
+                    print(f"Secret reconstruction failed: {str(e)}")
+                    flash('Unable to reconstruct the vault secret. Please verify your share values.', 'danger')
+                    return render_template('request_access.html', vault_id=vault_id, threshold=vault.threshold)
+                    
             except Exception as e:
                 # Log the error
                 import traceback
                 print(f"Error reconstructing secret: {str(e)}")
                 print(traceback.format_exc())
-                flash('An error occurred while retrieving the key.', 'danger')
-                return render_template('request_access.html', vault_id=vault_id)
-            
-        return render_template('request_access.html', vault_id=vault_id)
+                flash('An error occurred while retrieving the key. Please check your share values.', 'danger')
+                return render_template('request_access.html', vault_id=vault_id, threshold=vault.threshold)
+        
+        # GET request - display the form
+        return render_template('request_access.html', vault_id=vault_id, threshold=vault.threshold)
