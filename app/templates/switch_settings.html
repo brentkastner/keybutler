@@ -1,0 +1,136 @@
+<!-- =========================================================== -->
+<!-- switch_settings.html - Dead Man's Switch Settings -->
+<!-- =========================================================== -->
+{% extends "layout.html" %}
+
+{% block title %}Dead Man's Switch Settings - Zero Trust Key Escrow Service{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <div class="d-flex align-items-center">
+            <a href="{{ url_for('frontend_dashboard') }}" class="btn btn-sm btn-outline-secondary me-3">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+            <h1 class="mb-0">Dead Man's Switch Settings</h1>
+        </div>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow-lg border-0">
+            <div class="card-body p-4">
+                <div class="alert alert-warning mb-4">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <strong>Important:</strong> The dead man's switch will activate if you don't check in within the specified time period.
+                </div>
+                
+                <form method="post" action="{{ url_for('frontend_switch_settings') }}">
+                    <div class="mb-4">
+                        <label for="check_in_interval" class="form-label">Check-in Interval (Days)</label>
+                        <input type="number" class="form-control form-control-lg" id="check_in_interval" name="check_in_interval" 
+                               min="1" max="365" value="{{ user.check_in_interval }}" required>
+                        <div class="form-text">
+                            How often you need to check in to prevent the switch from activating.
+                            Choose a realistic interval that you can maintain.
+                        </div>
+                    </div>
+                    
+                    <div class="card mb-4 border">
+                        <div class="card-header">
+                            <h5 class="mb-0">Activation Process</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <div class="p-3 bg-light rounded">
+                                        <h6 class="fw-bold">Stage 1</h6>
+                                        <p class="mb-2">First missed check-in</p>
+                                        <div class="d-flex align-items-center">
+                                            <span class="badge bg-warning me-2">Warning</span>
+                                            <small>Email notification sent to you</small>
+                                        </div>
+                                        <div class="mt-2">
+                                            <small class="text-muted">Grace period: 3 days</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <div class="p-3 bg-light rounded">
+                                        <h6 class="fw-bold">Stage 2</h6>
+                                        <p class="mb-2">Grace period expired</p>
+                                        <div class="d-flex align-items-center">
+                                            <span class="badge bg-danger me-2">Alert</span>
+                                            <small>Beneficiaries notified</small>
+                                        </div>
+                                        <div class="mt-2">
+                                            <small class="text-muted">Grace period: 4 days</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <div class="p-3 bg-light rounded">
+                                        <h6 class="fw-bold">Stage 3</h6>
+                                        <p class="mb-2">Final stage</p>
+                                        <div class="d-flex align-items-center">
+                                            <span class="badge bg-dark me-2">Triggered</span>
+                                            <small>Switch activates</small>
+                                        </div>
+                                        <div class="mt-2">
+                                            <small class="text-muted">Beneficiaries gain access</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <small class="text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    You can reset the switch at any stage by performing a check-in.
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">Save Settings</button>
+                        <a href="{{ url_for('frontend_dashboard') }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const intervalInput = document.getElementById('check_in_interval');
+        
+        // Add some validation and visual feedback
+        intervalInput.addEventListener('change', function() {
+            const value = parseInt(this.value);
+            
+            if (value < 7) {
+                this.classList.add('is-warning');
+                this.parentNode.insertAdjacentHTML('beforeend', 
+                    '<div class="alert alert-warning mt-2">' +
+                    '<i class="bi bi-exclamation-triangle-fill me-2"></i>' +
+                    'Setting a very short interval increases the risk of accidental trigger.</div>');
+            } else if (value > 90) {
+                this.classList.add('is-warning');
+                this.parentNode.insertAdjacentHTML('beforeend', 
+                    '<div class="alert alert-warning mt-2">' +
+                    '<i class="bi bi-exclamation-triangle-fill me-2"></i>' +
+                    'Setting a very long interval delays beneficiary access in case of emergency.</div>');
+            } else {
+                this.classList.remove('is-warning');
+                // Remove any existing alerts
+                const alerts = this.parentNode.querySelectorAll('.alert');
+                alerts.forEach(alert => alert.remove());
+            }
+        });
+    });
+</script>
+{% endblock %}

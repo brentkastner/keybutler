@@ -1,0 +1,103 @@
+{% extends "layout.html" %}
+
+{% block title %}Add Beneficiary - Zero Trust Key Escrow Service{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <div class="d-flex align-items-center">
+            <a href="{{ url_for('frontend_view_vault', vault_id=vault.vault_id) }}" class="btn btn-sm btn-outline-secondary me-3">
+                <i class="bi bi-arrow-left"></i> Back to Vault
+            </a>
+            <h1 class="mb-0">Add Beneficiary</h1>
+        </div>
+        <p class="text-muted">Vault: {{ vault.vault_id }}</p>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow-lg border-0">
+            <div class="card-body p-4">
+                <div class="alert alert-info mb-4">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    <strong>Note:</strong> Beneficiaries will gain access to your vault's diceware keyphrase if the dead man's switch is triggered.
+                </div>
+                
+                <form method="post" action="{{ url_for('frontend_add_beneficiary', vault_id=vault.vault_id) }}">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Beneficiary Username</label>
+                        <input type="text" class="form-control" id="username" name="username" required>
+                        <div class="form-text">The username the beneficiary will use to identify themselves</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email Address</label>
+                        <input type="email" class="form-control" id="email" name="email" required>
+                        <div class="form-text">The beneficiary will be notified at this email address</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="public_key" class="form-label">Public Key</label>
+                        <textarea class="form-control" id="public_key" name="public_key" rows="5" required></textarea>
+                        <div class="form-text">The beneficiary's PGP/GPG public key used to encrypt the shared key</div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="threshold_index" class="form-label">Threshold Index</label>
+                        <select class="form-select" id="threshold_index" name="threshold_index">
+                            <option value="1">1 - Highest Priority</option>
+                            <option value="2">2 - Medium Priority</option>
+                            <option value="3">3 - Low Priority</option>
+                        </select>
+                        <div class="form-text">Determines priority when multiple beneficiaries are present</div>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">Add Beneficiary</button>
+                        <a href="{{ url_for('frontend_view_vault', vault_id=vault.vault_id) }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Demo public key generation placeholder
+        const publicKeyTextarea = document.getElementById('public_key');
+        const generateKeyBtn = document.createElement('button');
+        generateKeyBtn.className = 'btn btn-sm btn-outline-secondary mt-2';
+        generateKeyBtn.innerHTML = '<i class="bi bi-key me-1"></i> Generate Demo Key';
+        generateKeyBtn.type = 'button';
+        
+        generateKeyBtn.addEventListener('click', function() {
+            // This is just a placeholder for demo purposes
+            // In a real application, users would paste their actual PGP keys
+            const demoKey = 
+`-----BEGIN PGP PUBLIC KEY BLOCK-----
+Version: OpenPGP.js v4.10.10
+Comment: https://openpgpjs.org
+
+xjMEYmqLvBYJKwYBBAHaRw8BAQdAJGivfoI5qNFJ97gCQ8GzWiA4LwO2Thjj
+RX9vIwE+xBbNK0RlbW8gS2V5IDxkZW1vLmJlbmVmaWNpYXJ5QGV4YW1wbGUu
+Y29tPsKMBBAWCgAdBQJiaou8BAsJBwgDFQgKBBYAAgECGQECGwMCHgEAIQkQ
+emVqn5x1a50WIQTopLzGYcJKcpBERYF6ZWqfnHVrnQz7AP9ldOgANoCIwfoW
+iDUOZHrXMUOL8WWnrD2iBPiMr4VfwQD/bCoQIJBw/CgC40u1a1HZfFLIotOG
+a4+qcLwIvLO5rgHOOARiaou8EgorsGAEAfcFAQgB9wUCYmqLvAQACgkQemVq
+n5x1a50BJAD5AZCHxKcGXTxKPtaNJzgf8c0FWV+uyd7H7beBjF53hfUA/iyI
+Haha9CVZcbHjI240/qQvNwRfwrMr3JgHdCz7krgBwsB2BBgWCAAqBQJiaou8
+CRB6ZWqfnHVrnQIbDAUJHhM4AAQLCQcIAxUICgQWAAIBAgIeAQAhCRB6ZWqf
+nHVrnRYhBOikvMZhwkpykERFgXpd==
+-----END PGP PUBLIC KEY BLOCK-----`;
+            publicKeyTextarea.value = demoKey;
+        });
+        
+        // Append the button after the textarea
+        publicKeyTextarea.parentNode.insertBefore(generateKeyBtn, publicKeyTextarea.nextSibling);
+    });
+</script>
+{% endblock %}

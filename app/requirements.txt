@@ -1,0 +1,12 @@
+flask
+flask-SQLAlchemy
+PyNaCl
+cryptography
+apscheduler
+python-dotenv
+Werkzeug
+gunicorn
+Jinja2
+MarkupSafe
+itsdangerous
+qrcode

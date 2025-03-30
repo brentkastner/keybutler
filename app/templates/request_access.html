@@ -1,0 +1,46 @@
+<!-- =========================================================== -->
+<!-- request_access.html - Request Access Page -->
+<!-- =========================================================== -->
+{% extends "layout.html" %}
+
+{% block title %}Request Access - Zero Trust Key Escrow Service{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow-lg border-0">
+            <div class="card-header bg-dark text-white text-center py-3">
+                <h3 class="mb-0">Request Vault Access</h3>
+            </div>
+            <div class="card-body p-4">
+                <div class="text-center mb-4">
+                    <i class="bi bi-safe2 fs-1 text-primary"></i>
+                    <p class="lead mt-3">Vault ID: <strong>{{ vault_id }}</strong></p>
+                </div>
+                
+                <form method="post" action="{{ url_for('frontend_request_access', vault_id=vault_id) }}">
+                    <div class="mb-4">
+                        <label for="username" class="form-label">Your Beneficiary Username</label>
+                        <input type="text" class="form-control form-control-lg" id="username" name="username" required>
+                        <div class="form-text">The username assigned to you by the vault owner</div>
+                    </div>
+                    
+                    <div class="alert alert-info mb-4">
+                        <i class="bi bi-info-circle-fill me-2"></i>
+                        <strong>Note:</strong> Access to this vault is only granted if:
+                        <ul class="mb-0 mt-2">
+                            <li>You are a registered beneficiary for this vault</li>
+                            <li>The dead man's switch has been triggered by the vault owner</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">Request Access</button>
+                        <a href="{{ url_for('frontend_beneficiary_access') }}" class="btn btn-outline-secondary">Back</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

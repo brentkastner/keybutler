@@ -1,0 +1,102 @@
+{% extends "layout.html" %}
+
+{% block title %}Create Vault - Zero Trust Key Escrow Service{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h1>Create New Vault</h1>
+        <p class="lead">Store your diceware keyphrase securely</p>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow-lg border-0">
+            <div class="card-body p-4">
+                <form method="post" action="{{ url_for('frontend_create_vault') }}">
+                    <div class="mb-4">
+                        <label for="vault_id" class="form-label">Vault ID</label>
+                        <input type="text" class="form-control" id="vault_id" name="vault_id" required>
+                        <div class="form-text">A unique identifier for your vault (e.g., "personal-passwords")</div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="diceware_keyphrase" class="form-label">Diceware Keyphrase</label>
+                        <input type="text" class="form-control" id="diceware_keyphrase" name="diceware_keyphrase" required>
+                        <div class="form-text">
+                            The secret keyphrase that will be stored (e.g., "correct horse battery staple")
+                            <button type="button" class="btn btn-sm btn-outline-secondary ms-2" id="generateBtn">
+                                <i class="bi bi-dice-5 me-1"></i> Generate
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info mb-4">
+                        <i class="bi bi-info-circle-fill me-2"></i>
+                        <strong>Security Note:</strong> 
+                        Your keyphrase will be split into multiple shares using Shamir's Secret Sharing. 
+                        A threshold number of shares will be required to reconstruct the secret.
+                    </div>
+                    
+                    <div class="row mb-4">
+                        <div class="col-md-6 mb-3 mb-md-0">
+                            <label for="num_shares" class="form-label">Number of Shares</label>
+                            <input type="number" class="form-control" id="num_shares" name="num_shares" min="2" value="3" required>
+                            <div class="form-text">Total number of shares to create</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="threshold" class="form-label">Threshold</label>
+                            <input type="number" class="form-control" id="threshold" name="threshold" min="2" value="2" required>
+                            <div class="form-text">Minimum shares needed to reconstruct</div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">Create Vault</button>
+                        <a href="{{ url_for('frontend_dashboard') }}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const generateBtn = document.getElementById('generateBtn');
+        const keyphraseInput = document.getElementById('diceware_keyphrase');
+        const numSharesInput = document.getElementById('num_shares');
+        const thresholdInput = document.getElementById('threshold');
+        
+        // Ensure threshold is never greater than number of shares
+        numSharesInput.addEventListener('change', function() {
+            if (parseInt(thresholdInput.value) > parseInt(this.value)) {
+                thresholdInput.value = this.value;
+            }
+            thresholdInput.max = this.value;
+        });
+        
+        // Generate a diceware-like passphrase (simplified for demo)
+        generateBtn.addEventListener('click', function() {
+            const words = [
+                "correct", "horse", "battery", "staple", "apple", "orange", "banana", 
+                "pineapple", "castle", "dragon", "knight", "wizard", "elephant", "giraffe",
+                "tiger", "lion", "monkey", "zebra", "keyboard", "monitor", "mouse", "computer",
+                "window", "door", "table", "chair", "book", "pencil", "paper", "scissors"
+            ];
+            
+            // Pick 5 random words
+            let phrase = [];
+            for (let i = 0; i < 5; i++) {
+                const randomIndex = Math.floor(Math.random() * words.length);
+                phrase.push(words[randomIndex]);
+            }
+            
+            keyphraseInput.value = phrase.join(" ");
+        });
+    });
+</script>
+{% endblock %}

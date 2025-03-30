@@ -1,0 +1,150 @@
+<!-- =========================================================== -->
+<!-- view_vault.html - View Vault Page -->
+<!-- =========================================================== -->
+{% extends "layout.html" %}
+
+{% block title %}Vault Details - Zero Trust Key Escrow Service{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <div class="d-flex align-items-center">
+            <a href="{{ url_for('frontend_dashboard') }}" class="btn btn-sm btn-outline-secondary me-3">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+            <h1 class="mb-0">Vault: {{ vault.vault_id }}</h1>
+        </div>
+        <p class="text-muted">Created: {{ vault.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header">
+                <h5 class="mb-0">Key Shares</h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-4">
+                    Your diceware keyphrase has been split into {{ shares|length }} shares.
+                    {% if shares|length > 1 %}
+                        {% set threshold = shares|length // 2 + 1 %}
+                        At least {{ threshold }} shares are required to reconstruct the secret.
+                    {% endif %}
+                </p>
+                
+                <div class="list-group">
+                    {% for share in shares %}
+                        <div class="list-group-item">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">Share #{{ share.share_index }}</h6>
+                                <small class="text-muted">ID: {{ share.id }}</small>
+                            </div>
+                            <p class="mb-1 text-muted">Securely encrypted</p>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Beneficiaries</h5>
+                <a href="{{ url_for('frontend_add_beneficiary', vault_id=vault.vault_id) }}" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-person-plus me-1"></i> Add
+                </a>
+            </div>
+            <div class="card-body">
+                {% if beneficiaries %}
+                    <div class="list-group">
+                        {% for beneficiary in beneficiaries %}
+                            <div class="list-group-item">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">{{ beneficiary.username }}</h6>
+                                    <div>
+                                        <span class="badge bg-primary">Threshold: {{ beneficiary.threshold_index }}</span>
+                                    </div>
+                                </div>
+                                <p class="mb-1">{{ beneficiary.notification_email }}</p>
+                                <small class="text-muted">Public key is stored securely</small>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="bi bi-people fs-1 text-muted"></i>
+                        <p class="mt-3">No beneficiaries yet. Add beneficiaries who will gain access if the dead man's switch is triggered.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5 class="mb-0">Vault Security Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Key Splitting</h6>
+                        <p>Your secret has been split using Shamir's Secret Sharing algorithm. This means:</p>
+                        <ul>
+                            <li>No single share can reveal any information about your secret</li>
+                            <li>Only by combining the threshold number of shares can the secret be reconstructed</li>
+                            <li>Shares are encrypted with independent keys for additional security</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Dead Man's Switch</h6>
+                        <p>If the dead man's switch is triggered:</p>
+                        <ul>
+                            <li>Beneficiaries will be notified via email</li>
+                            <li>They can request access using their registered username</li>
+                            <li>The system will verify their identity before granting access</li>
+                            <li>The reconstructed secret will be encrypted with their public key</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex justify-content-end">
+    <button type="button" class="btn btn-danger me-2" data-bs-toggle="modal" data-bs-target="#deleteVaultModal">
+        <i class="bi bi-trash me-1"></i> Delete Vault
+    </button>
+</div>
+
+<!-- Delete Vault Modal -->
+<div class="modal fade" id="deleteVaultModal" tabindex="-1" aria-labelledby="deleteVaultModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteVaultModalLabel">Confirm Deletion</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the vault "{{ vault.vault_id }}"?</p>
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <strong>Warning:</strong> This action cannot be undone. All shares and beneficiary access will be permanently deleted.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form method="post" action="#">
+                    <input type="hidden" name="_method" value="DELETE">
+                    <button type="submit" class="btn btn-danger">Delete Vault</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

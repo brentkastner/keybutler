@@ -1,0 +1,113 @@
+<!-- =========================================================== -->
+<!-- index.html - Homepage -->
+<!-- =========================================================== -->
+{% extends "layout.html" %}
+
+{% block title %}Home - Zero Trust Key Escrow Service{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-lg-10">
+        <div class="card shadow-lg border-0">
+            <div class="card-body p-5">
+                <h1 class="display-4 text-center mb-4">Zero Trust Key Escrow Service</h1>
+                <p class="lead text-center mb-5">A secure way to store and share cryptographic keys with designated beneficiaries</p>
+                
+                <div class="row mb-5">
+                    <div class="col-md-4 text-center mb-4">
+                        <div class="p-4">
+                            <i class="bi bi-shield-lock fs-1 text-primary"></i>
+                            <h3 class="mt-3">Zero Trust</h3>
+                            <p>Our service is built on zero-trust principles, never trusting and always verifying.</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-center mb-4">
+                        <div class="p-4">
+                            <i class="bi bi-key fs-1 text-primary"></i>
+                            <h3 class="mt-3">Secure Key Sharing</h3>
+                            <p>Keys are split into multiple shares using Shamir's Secret Sharing algorithm.</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-center mb-4">
+                        <div class="p-4">
+                            <i class="bi bi-alarm fs-1 text-primary"></i>
+                            <h3 class="mt-3">Dead Man's Switch</h3>
+                            <p>Automatically grant access to your beneficiaries if you don't check in.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="text-center">
+                    {% if session.get('user_id') %}
+                        <a href="{{ url_for('frontend_dashboard') }}" class="btn btn-primary btn-lg me-2">Go to Dashboard</a>
+                    {% else %}
+                        <a href="{{ url_for('frontend_register') }}" class="btn btn-primary btn-lg me-2">Get Started</a>
+                        <a href="{{ url_for('frontend_login') }}" class="btn btn-outline-primary btn-lg">Login</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="card shadow border-0 mt-5">
+            <div class="card-body p-5">
+                <h2 class="text-center mb-4">How It Works</h2>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-4">
+                        <div class="d-flex">
+                            <div class="me-3">
+                                <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                    <span class="text-white fw-bold">1</span>
+                                </div>
+                            </div>
+                            <div>
+                                <h4>Create a Vault</h4>
+                                <p>Store your diceware keyphrase securely in a vault. Your keyphrase will be split into multiple shares using Shamir's Secret Sharing.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-4">
+                        <div class="d-flex">
+                            <div class="me-3">
+                                <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                    <span class="text-white fw-bold">2</span>
+                                </div>
+                            </div>
+                            <div>
+                                <h4>Add Beneficiaries</h4>
+                                <p>Designate who should receive access to your keys. Add their contact information and public key.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-4">
+                        <div class="d-flex">
+                            <div class="me-3">
+                                <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                    <span class="text-white fw-bold">3</span>
+                                </div>
+                            </div>
+                            <div>
+                                <h4>Configure Dead Man's Switch</h4>
+                                <p>Set how often you need to check in. If you miss check-ins, the switch will activate after warning periods.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-4">
+                        <div class="d-flex">
+                            <div class="me-3">
+                                <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                    <span class="text-white fw-bold">4</span>
+                                </div>
+                            </div>
+                            <div>
+                                <h4>Automatic Access</h4>
+                                <p>If the switch is triggered, your beneficiaries can request access to the vault and retrieve the keys.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

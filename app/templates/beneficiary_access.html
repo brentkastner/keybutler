@@ -1,0 +1,65 @@
+<!-- =========================================================== -->
+<!-- beneficiary_access.html - Beneficiary Access Portal -->
+<!-- =========================================================== -->
+{% extends "layout.html" %}
+
+{% block title %}Beneficiary Access - Zero Trust Key Escrow Service{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow-lg border-0">
+            <div class="card-header bg-dark text-white text-center py-3">
+                <h3 class="mb-0">Beneficiary Access Portal</h3>
+            </div>
+            <div class="card-body p-4">
+                <div class="text-center mb-4">
+                    <i class="bi bi-key fs-1 text-primary"></i>
+                    <p class="lead mt-3">Access vault keys as a designated beneficiary</p>
+                </div>
+                
+                <div class="alert alert-info mb-4">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    <strong>Note:</strong> You can only access vaults if the dead man's switch has been triggered by the vault owner.
+                </div>
+                
+                <form method="get" action="#" id="accessForm" class="mb-4">
+                    <div class="mb-3">
+                        <label for="vault_id" class="form-label">Vault ID</label>
+                        <input type="text" class="form-control form-control-lg" id="vault_id" name="vault_id" required>
+                        <div class="form-text">The unique identifier for the vault you're trying to access</div>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">Continue</button>
+                    </div>
+                </form>
+                
+                <div class="text-center">
+                    <p class="text-muted">
+                        <i class="bi bi-shield-lock me-1"></i>
+                        This service implements zero-trust security principles to protect sensitive keys
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const accessForm = document.getElementById('accessForm');
+        
+        accessForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const vaultId = document.getElementById('vault_id').value.trim();
+            
+            if (vaultId) {
+                window.location.href = `/beneficiary-access/${vaultId}`;
+            }
+        });
+    });
+</script>
+{% endblock %}

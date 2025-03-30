@@ -1,0 +1,99 @@
+{% extends "layout.html" %}
+
+{% block title %}Access Granted - Zero Trust Key Escrow Service{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow-lg border-0">
+            <div class="card-header bg-success text-white text-center py-3">
+                <h3 class="mb-0">Access Granted</h3>
+            </div>
+            <div class="card-body p-4">
+                <div class="text-center mb-4">
+                    <i class="bi bi-check-circle fs-1 text-success"></i>
+                    <p class="lead mt-3">Your access request has been approved</p>
+                </div>
+                
+                <div class="alert alert-success mb-4">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    <strong>Success:</strong> The dead man's switch has been triggered, and you are a registered beneficiary for this vault.
+                </div>
+                
+                <div class="card mb-4 border">
+                    <div class="card-header">
+                        <h5 class="mb-0">Access Details</h5>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row mb-0">
+                            <dt class="col-sm-4">Vault ID:</dt>
+                            <dd class="col-sm-8">{{ vault_id }}</dd>
+                            
+                            <dt class="col-sm-4">Beneficiary:</dt>
+                            <dd class="col-sm-8">{{ username }}</dd>
+                            
+                            <dt class="col-sm-4">Request ID:</dt>
+                            <dd class="col-sm-8">{{ request_id }}</dd>
+                            
+                            <dt class="col-sm-4">Status:</dt>
+                            <dd class="col-sm-8">
+                                <span class="badge bg-success">Approved</span>
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+                
+                <div class="card mb-4 border">
+                    <div class="card-header">
+                        <h5 class="mb-0">Diceware Keyphrase</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-3">
+                            <strong>Note:</strong> In a real implementation, the keyphrase would be encrypted with your public key.
+                            For this prototype, we're showing a simulated result.
+                        </p>
+                        
+                        <div class="bg-light p-3 rounded" id="keyphrase">
+                            <code>{{ keyphrase }}</code>
+                        </div>
+                        
+                        <div class="d-grid mt-3">
+                            <button class="btn btn-outline-secondary btn-sm" type="button" id="copyBtn">
+                                <i class="bi bi-clipboard me-1"></i> Copy Keyphrase
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="alert alert-warning mb-4">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <strong>Security Warning:</strong> Keep this keyphrase confidential and use it responsibly.
+                </div>
+                
+                <div class="d-grid">
+                    <a href="{{ url_for('frontend_beneficiary_access') }}" class="btn btn-primary">Return to Beneficiary Portal</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const copyBtn = document.getElementById('copyBtn');
+        const keyphraseElement = document.getElementById('keyphrase');
+        
+        copyBtn.addEventListener('click', function() {
+            const keyphrase = keyphraseElement.textContent.trim();
+            navigator.clipboard.writeText(keyphrase).then(function() {
+                copyBtn.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Copied!';
+                setTimeout(function() {
+                    copyBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i> Copy Keyphrase';
+                }, 2000);
+            });
+        });
+    });
+</script>
+{% endblock %}

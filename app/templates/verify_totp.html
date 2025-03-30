@@ -1,0 +1,67 @@
+<!-- =========================================================== -->
+<!-- verify_totp.html - TOTP Verification Page -->
+<!-- =========================================================== -->
+{% extends "layout.html" %}
+
+{% block title %}Verify TOTP - Zero Trust Key Escrow Service{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow-lg border-0">
+            <div class="card-header bg-primary text-white text-center py-3">
+                <h3 class="mb-0">Two-Factor Authentication</h3>
+            </div>
+            <div class="card-body p-4">
+                <div class="text-center mb-4">
+                    <i class="bi bi-shield-lock fs-1 text-primary"></i>
+                    <p class="lead mt-3">Enter the 6-digit verification code from your authenticator app</p>
+                </div>
+                
+                <form method="post" action="{{ url_for('frontend_verify_totp') }}">
+                    <div class="mb-4">
+                        <label for="totp_code" class="form-label">TOTP Code</label>
+                        <input type="text" class="form-control form-control-lg text-center" id="totp_code" name="totp_code" 
+                               required autofocus inputmode="numeric" pattern="[0-9]{6}" maxlength="6">
+                        <div class="form-text text-center">The code refreshes every 30 seconds</div>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">Verify</button>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer bg-light py-3 text-center">
+                <p class="mb-0">
+                    Lost your authenticator app?
+                    <br>
+                    <small class="text-muted">Contact support to regain access to your account.</small>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const input = document.getElementById('totp_code');
+        
+        // Auto-submit when 6 digits are entered
+        input.addEventListener('input', function() {
+            if (this.value.length === 6) {
+                setTimeout(() => {
+                    this.form.submit();
+                }, 200);
+            }
+        });
+        
+        // Only allow numeric input
+        input.addEventListener('keypress', function(e) {
+            if (!/[0-9]/.test(e.key)) {
+                e.preventDefault();
+            }
+        });
+    });
+</script>
+{% endblock %}

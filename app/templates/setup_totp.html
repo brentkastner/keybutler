@@ -1,0 +1,118 @@
+<!-- =========================================================== -->
+<!-- setup_totp.html - TOTP Setup Page -->
+<!-- =========================================================== -->
+{% extends "layout.html" %}
+
+{% block title %}Setup TOTP - Zero Trust Key Escrow Service{% endblock %}
+
+{% block extra_css %}
+<style>
+    .totp-secret {
+        font-family: monospace;
+        padding: 10px;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        border: 1px solid #ddd;
+        word-break: break-all;
+    }
+    .qr-placeholder {
+        width: 200px;
+        height: 200px;
+        margin: 0 auto;
+        background-color: #f8f9fa;
+        border: 1px solid #ddd;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        color: #6c757d;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-lg border-0">
+            <div class="card-header bg-primary text-white text-center py-3">
+                <h3 class="mb-0">Set Up Two-Factor Authentication</h3>
+            </div>
+            <div class="card-body p-4">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <strong>Important:</strong> Please save your TOTP secret securely. This is the only time it will be shown!
+                </div>
+                
+                <p class="lead text-center mb-4">Follow these steps to set up TOTP authentication:</p>
+                
+                <div class="row mb-4">
+                    <div class="col-md-6 mb-4 mb-md-0">
+                        <h5>1. Install an authenticator app</h5>
+                        <p>Download and install a TOTP authenticator app such as:</p>
+                        <ul>
+                            <li>Google Authenticator</li>
+                            <li>Authy</li>
+                            <li>Microsoft Authenticator</li>
+                            <li>FreeOTP</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h5>2. Add your TOTP secret</h5>
+                        <p>Open your authenticator app and add a new account by:</p>
+                        <ul>
+                            <li>Scanning the QR code (if available), or</li>
+                            <li>Manually entering the secret key below</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="row align-items-center mb-4">
+                    <div class="col-md-6 text-center mb-4 mb-md-0">
+                        <!-- In a real implementation, you would generate a QR code here -->
+                        <div class="qr-placeholder">
+                            QR Code would appear here<br>
+                            (API integration needed)
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h5>Your TOTP Secret:</h5>
+                        <div class="totp-secret mb-3">{{ totp_secret }}</div>
+                        <div class="d-grid">
+                            <button class="btn btn-outline-secondary btn-sm" type="button" id="copySecret">
+                                <i class="bi bi-clipboard me-1"></i> Copy Secret
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="alert alert-info mb-4">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    <strong>Note:</strong> You'll need to provide the 6-digit code from your authenticator app whenever you log in.
+                </div>
+                
+                <div class="d-grid">
+                    <a href="{{ url_for('frontend_login') }}" class="btn btn-primary btn-lg">Continue to Login</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const copyBtn = document.getElementById('copySecret');
+        const secretText = document.querySelector('.totp-secret').textContent;
+        
+        copyBtn.addEventListener('click', function() {
+            navigator.clipboard.writeText(secretText).then(function() {
+                copyBtn.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Copied!';
+                setTimeout(function() {
+                    copyBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i> Copy Secret';
+                }, 2000);
+            });
+        });
+    });
+</script>
+{% endblock %}
