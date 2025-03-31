@@ -251,10 +251,10 @@ def register_frontend_routes(app, db):
         
         if request.method == 'POST':
             vault_id = request.form.get('vault_id')
-            diceware_keyphrase = request.form.get('diceware_keyphrase')
+            secret = request.form.get('secret')
             
             # Validation
-            if not vault_id or not diceware_keyphrase:
+            if not vault_id or not secret:
                 flash('Vault ID and diceware keyphrase are required.', 'danger')
                 return render_template('create_vault.html')
             
@@ -267,7 +267,7 @@ def register_frontend_routes(app, db):
             
             payload = {
                 'vault_id': vault_id,
-                'diceware_keyphrase': diceware_keyphrase
+                'secret': secret
             }
             
             response = requests.post(
@@ -344,12 +344,12 @@ def register_frontend_routes(app, db):
             # Get basic beneficiary information
             beneficiary_username = request.form.get('username')
             beneficiary_email = request.form.get('email')
-            beneficiary_public_key = request.form.get('public_key')
+            #beneficiary_public_key = request.form.get('public_key')
             threshold_index = int(request.form.get('threshold_index', 1))
             owner_share = request.form.get('owner_share')
             
             # Validation for basic fields
-            if not all([beneficiary_username, beneficiary_email, beneficiary_public_key, owner_share]):
+            if not all([beneficiary_username, beneficiary_email, owner_share]):
                 flash('All fields are required, including your owner share.', 'danger')
                 return render_template('add_beneficiary.html', vault=vault, beneficiaries=beneficiaries)
             
@@ -386,7 +386,6 @@ def register_frontend_routes(app, db):
                 'vault_id': vault_id,
                 'username': beneficiary_username,
                 'email': beneficiary_email,
-                'public_key': beneficiary_public_key,
                 'threshold_index': threshold_index,
                 'owner_share': owner_share,
                 'beneficiary_shares': beneficiary_shares
@@ -603,7 +602,7 @@ def register_frontend_routes(app, db):
                 
                 # We have enough shares, reconstruct the secret
                 try:
-                    diceware_keyphrase = ShamirSecretSharing.reconstruct_secret(
+                    secret = ShamirSecretSharing.reconstruct_secret(
                         shares_for_reconstruction, 
                         vault.threshold
                     )
@@ -614,7 +613,7 @@ def register_frontend_routes(app, db):
                         vault_id=vault_id,
                         username=", ".join(beneficiary_names),
                         request_id=request_id,
-                        keyphrase=diceware_keyphrase
+                        secret=secret
                     )
                 except ValueError as e:
                     # If reconstruction fails, show a helpful error

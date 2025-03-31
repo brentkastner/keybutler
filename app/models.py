@@ -57,7 +57,7 @@ class Beneficiary(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     vault_id = db.Column(db.Integer, db.ForeignKey('vault.id'), nullable=False)
     username = db.Column(db.String(80), nullable=False)
-    public_key = db.Column(db.Text, nullable=False)
+    public_key = db.Column(db.Text, nullable=True)
     notification_email = db.Column(db.String(120), nullable=False)
     threshold_index = db.Column(db.Integer, nullable=False)
     # Add relationship to key share

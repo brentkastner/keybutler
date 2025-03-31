@@ -269,10 +269,10 @@ def register_routes(app: Flask) -> None:
             return jsonify({"error": "No JSON data received"}), 400
             
         vault_id = data.get('vault_id')
-        diceware_keyphrase = data.get('diceware_keyphrase')
+        secret = data.get('secret')
         
-        if not vault_id or not diceware_keyphrase:
-            return jsonify({"error": "Vault ID and diceware keyphrase are required"}), 400
+        if not vault_id or not secret:
+            return jsonify({"error": "Vault ID and secret are required"}), 400
         
         # Initial share configuration - 2 shares at the beginning (system + owner)
         # With a threshold of 2 (both needed)
@@ -292,7 +292,7 @@ def register_routes(app: Flask) -> None:
         db.session.flush()  # Get the vault ID without committing
         
         # Create the shares using Shamir's Secret Sharing
-        shares = ShamirSecretSharing.create_shares(diceware_keyphrase, num_shares, threshold)
+        shares = ShamirSecretSharing.create_shares(secret, num_shares, threshold)
         
         # Process each share
         owner_share = None
@@ -433,13 +433,13 @@ def register_routes(app: Flask) -> None:
         vault_id = data.get('vault_id')
         beneficiary_username = data.get('username')
         beneficiary_email = data.get('email')
-        beneficiary_public_key = data.get('public_key')
+        #beneficiary_public_key = data.get('public_key')
         threshold_index = data.get('threshold_index', 1)
         owner_share = data.get('owner_share')  # Owner's share
         beneficiary_shares = data.get('beneficiary_shares', {})  # Additional beneficiary shares
         
         # All basic fields are required
-        if not all([vault_id, beneficiary_username, beneficiary_email, beneficiary_public_key, owner_share]):
+        if not all([vault_id, beneficiary_username, beneficiary_email, owner_share]):
             return jsonify({"error": "All fields are required, including owner_share"}), 400
         
         user_id = session.get('user_id')
@@ -463,7 +463,7 @@ def register_routes(app: Flask) -> None:
             vault_id=vault.id,
             username=beneficiary_username,
             notification_email=beneficiary_email,
-            public_key=beneficiary_public_key,
+            public_key="placeholder",
             threshold_index=threshold_index,
             share_displayed=False
         )
@@ -478,6 +478,7 @@ def register_routes(app: Flask) -> None:
                 return jsonify({"error": "System share not found"}), 500
             
             # Decrypt the system share
+            # TODO: study this implementation of how the system shares are encrypted/decrypted
             share_data = json.loads(system_share.encrypted_share)
             salt = base64.b64decode(share_data['salt'])
             share_key, _ = derive_key(f"share_{system_share.share_index}_{vault_id}", salt)
@@ -530,6 +531,8 @@ def register_routes(app: Flask) -> None:
                 # Update the vault's share configuration
                 new_total_shares = vault.total_shares + 1
                 # Threshold is half of the total shares plus one, ensures majority
+                #TODO: we're looking at making this total shares - 1 so all beneficiaries less the owner can unlock
+                #TODO: need to protect against beneficiaries gathering outside the escrow system and unlocking the secret
                 new_threshold = (new_total_shares // 2) + 1
                 
                 vault.total_shares = new_total_shares
@@ -576,7 +579,7 @@ def register_routes(app: Flask) -> None:
                     elif i == new_total_shares:  # Last share is for the new beneficiary
                         new_beneficiary_share = share_value
                         
-                        # Encrypt and store the beneficiary share
+                        # TODO: Encrypt and do not store the beneficiary share
                         share_key, salt = derive_key(f"share_{i}_{vault_id}")
                         
                         encrypted_share = json.dumps({
@@ -586,7 +589,7 @@ def register_routes(app: Flask) -> None:
                         
                         key_share = KeyShare(
                             vault_id=vault.id,
-                            encrypted_share=encrypted_share,
+                            encrypted_share="only the beneficiary has this share",
                             share_index=i,
                             share_type="beneficiary",
                             beneficiary_id=beneficiary.id
@@ -614,7 +617,7 @@ def register_routes(app: Flask) -> None:
                                     "share": encrypt_data(share_value, share_key)
                                 })
                                 
-                                existing_beneficiary.key_share.encrypted_share = encrypted_share
+                                existing_beneficiary.key_share.encrypted_share = "only the beneficiary has this share"
                                 existing_beneficiary.key_share.share_index = i
                             else:
                                 # Create a new key share record
@@ -627,7 +630,7 @@ def register_routes(app: Flask) -> None:
                                 
                                 key_share = KeyShare(
                                     vault_id=vault.id,
-                                    encrypted_share=encrypted_share,
+                                    encrypted_share="only the beneficiary has this share",
                                     share_index=i,
                                     share_type="beneficiary",
                                     beneficiary_id=existing_beneficiary.id

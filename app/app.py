@@ -15,10 +15,12 @@ from apscheduler.schedulers.background import BackgroundScheduler
 app = Flask(__name__)
 
 # Load configuration from environment variables
-app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", os.urandom(24).hex())
+#TODO: add in the config paramas for prod we're still building
+#app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", os.urandom(24).hex())
+app.config["SECRET_KEY"] = "nevergonnagiveyouup"
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URI", "sqlite:///escrow_service.db")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=30)  # Short-lived sessions
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=120)  # Short-lived sessions
 
 # Initialize database
 db = SQLAlchemy(app)
