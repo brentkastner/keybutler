@@ -43,8 +43,8 @@ This is a prototype implementation of a secure zero-trust key escrow service wit
 
 1. Clone the repository:
    ```
-   git clone https://github.com/yourusername/key-escrow-service.git
-   cd key-escrow-service
+   git clone https://github.com/brentkastner/keybutler.git
+   cd keybutler
    ```
 
 2. Create a virtual environment:
