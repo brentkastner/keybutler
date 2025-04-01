@@ -15,7 +15,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from app import db
 from auth import verify_totp
-from crypto import ShamirSecretSharing, derive_key, encrypt_data, decrypt_data
+from crypto import ShamirSecretSharing, derive_key, encrypt_data, decrypt_data, create_share_key
 from models import Beneficiary, DeadMansSwitch, KeyShare, User, Vault
 
 
@@ -307,10 +307,10 @@ def register_routes(app: Flask) -> None:
             
             # For system share, encrypt and store in database
             if share_type == "system":
-                # Derive a key for encrypting this share
-                share_key, salt = derive_key(f"share_{i}_{vault_id}")
-                
-                # Encrypt the share
+                # Use secure key generation with context
+                share_key, salt = create_share_key(i, vault_id, "system_share")
+
+                # Encrypt the share with versioning built-in
                 encrypted_share = json.dumps({
                     "salt": base64.b64encode(salt).decode('utf-8'),
                     "share": encrypt_data(share_value, share_key)
@@ -426,6 +426,9 @@ def register_routes(app: Flask) -> None:
         to reconstruct the secret, then redistributes shares with one new share 
         for the beneficiary.
         """
+        from secure_config import secure_wipe
+        from crypto import create_share_key, encrypt_data, decrypt_data, SecureKey
+        
         data = request.get_json()
         if not data:
             return jsonify({"error": "No JSON data received"}), 400
@@ -433,7 +436,6 @@ def register_routes(app: Flask) -> None:
         vault_id = data.get('vault_id')
         beneficiary_username = data.get('username')
         beneficiary_email = data.get('email')
-        #beneficiary_public_key = data.get('public_key')
         threshold_index = data.get('threshold_index', 1)
         owner_share = data.get('owner_share')  # Owner's share
         beneficiary_shares = data.get('beneficiary_shares', {})  # Additional beneficiary shares
@@ -470,19 +472,32 @@ def register_routes(app: Flask) -> None:
         db.session.add(beneficiary)
         db.session.flush()  # To get the beneficiary ID
         
-        # Now we need to retrieve the system share and reconstruct the original secret
+        # List to store sensitive data that needs to be wiped
+        sensitive_data = []
+        
         try:
+            # Now we need to retrieve the system share and reconstruct the original secret
             # Get the system share
             system_share = KeyShare.query.filter_by(vault_id=vault.id, share_type="system").first()
             if not system_share:
                 return jsonify({"error": "System share not found"}), 500
             
-            # Decrypt the system share
-            # TODO: study this implementation of how the system shares are encrypted/decrypted
+            # Decrypt the system share with enhanced security
             share_data = json.loads(system_share.encrypted_share)
             salt = base64.b64decode(share_data['salt'])
-            share_key, _ = derive_key(f"share_{system_share.share_index}_{vault_id}", salt)
-            decrypted_system_share = decrypt_data(share_data['share'], share_key)
+            
+            # Use the secure key generation with proper context
+            system_share_key, _ = create_share_key(
+                system_share.share_index, 
+                vault_id, 
+                "system_share",
+                salt
+            )
+            sensitive_data.append(system_share_key)
+            
+            # Decrypt the system share
+            decrypted_system_share = decrypt_data(share_data['share'], system_share_key)
+            sensitive_data.append(decrypted_system_share)
             
             # Collect all shares for reconstruction
             shares_for_reconstruction = [
@@ -507,6 +522,8 @@ def register_routes(app: Flask) -> None:
                     shares_for_reconstruction.append(
                         (int(share_index), share_info['share_value'])
                     )
+                    # Add to list of sensitive data
+                    sensitive_data.append(share_info['share_value'])
             
             # Verify we have enough shares to meet the threshold
             if len(shares_for_reconstruction) < vault.threshold:
@@ -524,16 +541,15 @@ def register_routes(app: Flask) -> None:
                 original_secret = ShamirSecretSharing.reconstruct_secret(
                     shares_for_reconstruction, vault.threshold
                 )
+                sensitive_data.append(original_secret)
                 
                 # Debug
                 print(f"Successfully reconstructed secret, type: {type(original_secret)}")
                 
                 # Update the vault's share configuration
                 new_total_shares = vault.total_shares + 1
-                # Threshold is half of the total shares plus one, ensures majority
-                #TODO: we're looking at making this total shares - 1 so all beneficiaries less the owner can unlock
-                #TODO: need to protect against beneficiaries gathering outside the escrow system and unlocking the secret
-                new_threshold = (new_total_shares // 2) + 1
+                # Threshold calculation
+                new_threshold = new_total_shares - 1
                 
                 vault.total_shares = new_total_shares
                 vault.threshold = new_threshold
@@ -555,13 +571,17 @@ def register_routes(app: Flask) -> None:
                 existing_beneficiary_shares = []
                 
                 for i, share_value in new_shares:
+                    # Add each share value to sensitive data for wiping
+                    sensitive_data.append(share_value)
+                    
                     if i == 1:  # System share is always index 1
-                        # Store the new system share
-                        share_key, salt = derive_key(f"share_{i}_{vault_id}")
+                        # Store the new system share with enhanced security
+                        new_system_key, new_salt = create_share_key(i, vault_id, "system_share")
+                        sensitive_data.append(new_system_key)
                         
                         encrypted_share = json.dumps({
-                            "salt": base64.b64encode(salt).decode('utf-8'),
-                            "share": encrypt_data(share_value, share_key)
+                            "salt": base64.b64encode(new_salt).decode('utf-8'),
+                            "share": encrypt_data(share_value, new_system_key)
                         })
                         
                         key_share = KeyShare(
@@ -579,14 +599,8 @@ def register_routes(app: Flask) -> None:
                     elif i == new_total_shares:  # Last share is for the new beneficiary
                         new_beneficiary_share = share_value
                         
-                        # TODO: Encrypt and do not store the beneficiary share
-                        share_key, salt = derive_key(f"share_{i}_{vault_id}")
-                        
-                        encrypted_share = json.dumps({
-                            "salt": base64.b64encode(salt).decode('utf-8'),
-                            "share": encrypt_data(share_value, share_key)
-                        })
-                        
+                        # We don't store the beneficiary share in plaintext
+                        # Instead we mark it as an external share
                         key_share = KeyShare(
                             vault_id=vault.id,
                             encrypted_share="only the beneficiary has this share",
@@ -609,25 +623,10 @@ def register_routes(app: Flask) -> None:
                             
                             # Update the beneficiary's key share in the database
                             if existing_beneficiary.key_share:
-                                # Encrypt and store the updated share
-                                share_key, salt = derive_key(f"share_{i}_{vault_id}")
-                                
-                                encrypted_share = json.dumps({
-                                    "salt": base64.b64encode(salt).decode('utf-8'),
-                                    "share": encrypt_data(share_value, share_key)
-                                })
-                                
                                 existing_beneficiary.key_share.encrypted_share = "only the beneficiary has this share"
                                 existing_beneficiary.key_share.share_index = i
                             else:
                                 # Create a new key share record
-                                share_key, salt = derive_key(f"share_{i}_{vault_id}")
-                                
-                                encrypted_share = json.dumps({
-                                    "salt": base64.b64encode(salt).decode('utf-8'),
-                                    "share": encrypt_data(share_value, share_key)
-                                })
-                                
                                 key_share = KeyShare(
                                     vault_id=vault.id,
                                     encrypted_share="only the beneficiary has this share",
@@ -675,7 +674,12 @@ def register_routes(app: Flask) -> None:
             print(f"Error adding beneficiary: {str(e)}")
             print(traceback.format_exc())
             return jsonify({"error": f"Error processing beneficiary: {str(e)}. Please try again."}), 500
-
+            
+        finally:
+            # Securely wipe all sensitive data
+            for data in sensitive_data:
+                if data:
+                    secure_wipe(data)
     
     @app.route('/api/beneficiary/<int:beneficiary_id>', methods=['DELETE'])
     @login_required

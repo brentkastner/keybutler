@@ -8,7 +8,7 @@ from flask import Flask, render_template, redirect, url_for, request, session, f
 from functools import wraps
 import json, base64
 from models import User, Vault, KeyShare, Beneficiary, DeadMansSwitch
-from crypto import ShamirSecretSharing, derive_key, decrypt_data
+from crypto import ShamirSecretSharing, derive_key, decrypt_data, create_share_key
 from app import db
 
 
@@ -556,7 +556,14 @@ def register_frontend_routes(app, db):
                 # Decrypt the system share
                 share_data = json.loads(system_share.encrypted_share)
                 salt = base64.b64decode(share_data['salt'])
-                share_key, _ = derive_key(f"share_{system_share.share_index}_{vault_id}", salt)
+
+                share_key, _ = create_share_key(
+                    system_share.share_index, 
+                    vault_id, 
+                    "system_share",
+                    salt
+                )
+
                 decrypted_system_share = decrypt_data(share_data['share'], share_key)
                 
                 # Prepare shares for reconstruction
