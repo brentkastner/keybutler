@@ -1,13 +1,13 @@
 """
-Key Escrow Service with Dead Man's Switch - Prototype
-----------------------------------------------------
-Cryptographic utilities for secure key management
+Enhanced crypto functions with improved key derivation security
 """
 
 import base64
 import os
 import secrets
-from typing import List, Tuple
+import hmac
+import hashlib
+from typing import List, Tuple, Dict, Optional
 
 import nacl.secret
 import nacl.utils
@@ -15,64 +15,208 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
+from secure_config import get_master_key, get_key_pepper, get_pbkdf2_iterations, get_key_version, secure_wipe
 
-def derive_key(password: str, salt: bytes = None) -> Tuple[bytes, bytes]:
+
+def derive_key(password: str, salt: bytes = None, key_context: str = None) -> Tuple[bytes, bytes]:
     """
-    Derive a cryptographic key from a password using PBKDF2.
+    Derive a cryptographic key from a password using PBKDF2 with additional security.
     
     Args:
         password: The password to derive the key from
         salt: Optional salt bytes. If None, a random salt will be generated
+        key_context: Optional context string that's used to create a unique master key
         
     Returns:
         Tuple of (derived_key, salt)
     """
-    if salt is None:
-        salt = os.urandom(16)
-    
-    kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=salt,
-        iterations=100000,
-        backend=default_backend()
-    )
-    key = kdf.derive(password.encode())
-    return key, salt
+    try:
+        # Get server-side secrets
+        master_key = get_master_key()
+        pepper = get_key_pepper()
+        iterations = get_pbkdf2_iterations()
+        key_version = get_key_version()
+        
+        # If no salt, generate a cryptographically secure one
+        if salt is None:
+            salt = os.urandom(16)
+        
+        # Add version to salt to make key derivation version-aware
+        versioned_salt = salt + key_version.to_bytes(4, byteorder='big')
+        
+        # Create a unique master key variant if context is provided
+        if key_context:
+            # Use HMAC to derive a context-specific master key
+            context_master_key = hmac.new(
+                master_key,
+                key_context.encode(),
+                hashlib.sha256
+            ).digest()
+        else:
+            context_master_key = master_key
+        
+        # Combine password with pepper (server-side secret)
+        # This ensures even if DB is compromised, keys can't be derived without server secret
+        enhanced_password = password.encode() + pepper
+        
+        # Use PBKDF2 with enhanced security parameters
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA512(),  # Upgraded from SHA256
+            length=32,
+            salt=versioned_salt,
+            iterations=iterations,
+            backend=default_backend()
+        )
+        derived_key = kdf.derive(enhanced_password)
+        
+        # Further enhance key with master key using HMAC
+        final_key = hmac.new(
+            context_master_key,
+            derived_key,
+            hashlib.sha256
+        ).digest()
+        
+        return final_key, salt
+    finally:
+        # Securely wipe sensitive data from memory
+        if 'master_key' in locals():
+            secure_wipe(master_key)
+        if 'context_master_key' in locals():
+            secure_wipe(context_master_key)
+        if 'derived_key' in locals():
+            secure_wipe(derived_key)
+        if 'enhanced_password' in locals():
+            secure_wipe(enhanced_password)
 
 
 def encrypt_data(data: str, key: bytes) -> str:
     """
-    Encrypt data using NaCl's SecretBox (XSalsa20-Poly1305).
+    Encrypt data using NaCl's SecretBox (XSalsa20-Poly1305) with enhanced security.
     
     Args:
         data: The string data to encrypt
         key: 32-byte encryption key
         
     Returns:
-        Base64-encoded encrypted data
+        Base64-encoded encrypted data with key version
     """
-    box = nacl.secret.SecretBox(key)
-    nonce = nacl.utils.random(nacl.secret.SecretBox.NONCE_SIZE)
-    encrypted = box.encrypt(data.encode(), nonce)
-    return base64.b64encode(encrypted).decode('utf-8')
+    try:
+        # Validate key size
+        if len(key) != nacl.secret.SecretBox.KEY_SIZE:
+            raise ValueError(f"Key must be {nacl.secret.SecretBox.KEY_SIZE} bytes")
+        
+        # Get current key version for versioning
+        key_version = get_key_version()
+        
+        # Create the secret box for encryption
+        box = nacl.secret.SecretBox(key)
+        
+        # Generate random nonce
+        nonce = nacl.utils.random(nacl.secret.SecretBox.NONCE_SIZE)
+        
+        # Encrypt data
+        encrypted = box.encrypt(data.encode(), nonce)
+        
+        # Prepend the key version as a 4-byte integer
+        versioned_encrypted = key_version.to_bytes(4, byteorder='big') + encrypted
+        
+        # Return base64 encoded result
+        return base64.b64encode(versioned_encrypted).decode('utf-8')
+    finally:
+        # No sensitive data to wipe in this function
+        pass
 
 
 def decrypt_data(encrypted_data: str, key: bytes) -> str:
     """
-    Decrypt data using NaCl's SecretBox.
+    Decrypt data using NaCl's SecretBox with version checking.
     
     Args:
-        encrypted_data: Base64-encoded encrypted data
+        encrypted_data: Base64-encoded encrypted data with version
         key: 32-byte encryption key
         
     Returns:
         Decrypted string
     """
-    box = nacl.secret.SecretBox(key)
-    decrypted = box.decrypt(base64.b64decode(encrypted_data))
-    return decrypted.decode('utf-8')
+    try:
+        # Validate key size
+        if len(key) != nacl.secret.SecretBox.KEY_SIZE:
+            raise ValueError(f"Key must be {nacl.secret.SecretBox.KEY_SIZE} bytes")
+        
+        # Decode base64
+        encrypted_bytes = base64.b64decode(encrypted_data)
+        
+        # Extract version (first 4 bytes)
+        if len(encrypted_bytes) < 4:
+            raise ValueError("Invalid encrypted data format")
+            
+        version_bytes = encrypted_bytes[:4]
+        version = int.from_bytes(version_bytes, byteorder='big')
+        
+        # Get current key version
+        current_version = get_key_version()
+        
+        # In a production system, we'd handle key rotation here
+        # For now, just warn if versions don't match
+        if version != current_version:
+            print(f"Warning: Decrypting data from key version {version} with current version {current_version}")
+        
+        # Extract the actual encrypted data
+        actual_encrypted = encrypted_bytes[4:]
+        
+        # Create secret box and decrypt
+        box = nacl.secret.SecretBox(key)
+        decrypted = box.decrypt(actual_encrypted)
+        
+        return decrypted.decode('utf-8')
+    finally:
+        # No sensitive data to wipe in this function
+        pass
 
+
+def create_share_key(share_index: int, vault_id: str, purpose: str = "encryption", salt: bytes = None) -> Tuple[bytes, bytes]:
+    """
+    Create a secure key for encrypting or decrypting shares.
+    
+    Args:
+        share_index: The index of the share
+        vault_id: The ID of the vault
+        purpose: Purpose of the key (encryption, decryption, etc.)
+        salt: Optional salt bytes. If None, a random salt will be generated
+        
+    Returns:
+        Tuple of (key, salt)
+    """
+    try:
+        # Create a non-guessable key identifier using both values plus a purpose
+        key_context = f"share_{purpose}_{share_index}_{vault_id}"
+        
+        # Generate salt only if not provided
+        if salt is None:
+            salt = os.urandom(16)
+        
+        # Use our enhanced key derivation
+        key, salt = derive_key(key_context, salt, key_context)
+        
+        return key, salt
+    finally:
+        # No sensitive data to wipe here that isn't returned
+        pass
+
+
+# Context manager for secure key handling
+class SecureKey:
+    """Context manager for handling sensitive key material with automatic wiping."""
+    
+    def __init__(self, key_data=None):
+        self.key_data = key_data
+    
+    def __enter__(self):
+        return self.key_data
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        secure_wipe(self.key_data)
+        self.key_data = None
 
 class ShamirSecretSharing:
     """

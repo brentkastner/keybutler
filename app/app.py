@@ -3,7 +3,7 @@ Key Escrow Service with Dead Man's Switch - Prototype
 ----------------------------------------------------
 Main application entry point
 """
-
+from dotenv import load_dotenv
 import os
 from datetime import datetime, timedelta
 
@@ -11,13 +11,13 @@ from flask import Flask, render_template
 from flask_sqlalchemy import SQLAlchemy
 from apscheduler.schedulers.background import BackgroundScheduler
 
+load_dotenv()
 # Initialize Flask application
 app = Flask(__name__)
 
 # Load configuration from environment variables
 #TODO: add in the config paramas for prod we're still building
-#app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", os.urandom(24).hex())
-app.config["SECRET_KEY"] = "nevergonnagiveyouup"
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", os.urandom(24).hex())
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URI", "sqlite:///escrow_service.db")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=120)  # Short-lived sessions
