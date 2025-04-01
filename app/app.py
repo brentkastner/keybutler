@@ -16,7 +16,6 @@ load_dotenv()
 app = Flask(__name__)
 
 # Load configuration from environment variables
-#TODO: add in the config paramas for prod we're still building
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", os.urandom(24).hex())
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URI", "sqlite:///escrow_service.db")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False

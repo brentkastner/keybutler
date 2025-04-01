@@ -15,7 +15,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from app import db
 from auth import verify_totp
-from crypto import ShamirSecretSharing, derive_key, encrypt_data, decrypt_data, create_share_key
+from crypto import ShamirSecretSharing, encrypt_data, create_share_key
 from models import Beneficiary, DeadMansSwitch, KeyShare, User, Vault
 
 
