@@ -265,7 +265,9 @@ def register_frontend_routes(app, db):
             # Include session cookie to maintain authentication
             cookies = {key: value for key, value in request.cookies.items()}
             
+            #TODO: Change vaultname and vaultid
             payload = {
+                'vault_name': vault_id,
                 'vault_id': vault_id,
                 'secret': secret
             }

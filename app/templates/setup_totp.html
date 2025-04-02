@@ -15,7 +15,7 @@
         border: 1px solid #ddd;
         word-break: break-all;
     }
-    .qr-placeholder {
+    .qr-container {
         width: 200px;
         height: 200px;
         margin: 0 auto;
@@ -24,8 +24,10 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        font-weight: bold;
-        color: #6c757d;
+    }
+    #qrcode {
+        padding: 10px;
+        background: white;
     }
 </style>
 {% endblock %}
@@ -60,19 +62,18 @@
                         <h5>2. Add your TOTP secret</h5>
                         <p>Open your authenticator app and add a new account by:</p>
                         <ul>
-                            <li>Scanning the QR code (if available), or</li>
-                            <li>Manually entering the secret key below</li>
+                            <li>Scanning the QR code below, or</li>
+                            <li>Manually entering the secret key</li>
                         </ul>
                     </div>
                 </div>
                 
                 <div class="row align-items-center mb-4">
                     <div class="col-md-6 text-center mb-4 mb-md-0">
-                        <!-- In a real implementation, you would generate a QR code here -->
-                        <div class="qr-placeholder">
-                            QR Code would appear here<br>
-                            (API integration needed)
+                        <div class="qr-container">
+                            <div id="qrcode"></div>
                         </div>
+                        <p class="mt-2 text-muted small">Scan with your authenticator app</p>
                     </div>
                     <div class="col-md-6">
                         <h5>Your TOTP Secret:</h5>
@@ -97,11 +98,18 @@
         </div>
     </div>
 </div>
+<!-- Hidden fields to store data needed for QR code generation -->
+<input type="hidden" id="totpSecret" value="{{ totp_secret }}">
+<input type="hidden" id="username" value="{{ username }}">
+<input type="hidden" id="serviceName" value="{{ service_name|default('Zero Trust Key Escrow') }}">
 {% endblock %}
 
 {% block extra_js %}
+<!-- Include qrcode.js library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Copy button functionality
         const copyBtn = document.getElementById('copySecret');
         const secretText = document.querySelector('.totp-secret').textContent;
         
@@ -112,6 +120,25 @@
                     copyBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i> Copy Secret';
                 }, 2000);
             });
+        });
+
+        // Generate QR code
+        const totpSecret = document.getElementById('totpSecret').value;
+        const username = document.getElementById('username').value;
+        const serviceName = document.getElementById('serviceName').value;
+        
+        // Format the TOTP URI according to the Key URI Format
+        // otpauth://totp/[Service Name]:[Username]?secret=[Secret]&issuer=[Service Name]
+        const totpUri = `otpauth://totp/${encodeURIComponent(serviceName)}:${encodeURIComponent(username)}?secret=${encodeURIComponent(totpSecret)}&issuer=${encodeURIComponent(serviceName)}`;
+        
+        // Generate QR code
+        new QRCode(document.getElementById("qrcode"), {
+            text: totpUri,
+            width: 180,
+            height: 180,
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
         });
     });
 </script>

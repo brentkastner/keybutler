@@ -36,7 +36,7 @@ def derive_key(password: str, salt: bytes = None, key_context: str = None) -> Tu
         pepper = get_key_pepper()
         iterations = get_pbkdf2_iterations()
         key_version = get_key_version()
-        
+
         # If no salt, generate a cryptographically secure one
         if salt is None:
             salt = os.urandom(16)
