@@ -8,7 +8,7 @@ from flask import Flask, render_template, redirect, url_for, request, session, f
 from functools import wraps
 import json, base64
 from models import User, Vault, KeyShare, Beneficiary, DeadMansSwitch
-from crypto import ShamirSecretSharing, derive_key, decrypt_data, create_share_key
+from crypto import ShamirSecretSharing, decrypt_data, create_share_key
 from app import db
 
 
@@ -265,7 +265,9 @@ def register_frontend_routes(app, db):
             # Include session cookie to maintain authentication
             cookies = {key: value for key, value in request.cookies.items()}
             
+            #TODO: Change vaultname and vaultid
             payload = {
+                'vault_name': vault_id,
                 'vault_id': vault_id,
                 'secret': secret
             }
@@ -407,7 +409,6 @@ def register_frontend_routes(app, db):
                 # Debug logging after receiving response
                 print(f"Response status: {response.status_code}")
                 print(f"Response headers: {response.headers}")
-                print(f"Response content preview: {response.content[:500]}")
                 
                 if response.status_code == 201:
                     # Success

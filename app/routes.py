@@ -15,7 +15,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from app import db
 from auth import verify_totp
-from crypto import ShamirSecretSharing, derive_key, encrypt_data, decrypt_data, create_share_key
+from crypto import ShamirSecretSharing, encrypt_data, create_share_key
 from models import Beneficiary, DeadMansSwitch, KeyShare, User, Vault
 
 
@@ -268,7 +268,10 @@ def register_routes(app: Flask) -> None:
         if not data:
             return jsonify({"error": "No JSON data received"}), 400
             
+        #TODO: generate vault_id to be a six char alphanumeric and vaultname to be passed
+        
         vault_id = data.get('vault_id')
+        vault_name = vault_id
         secret = data.get('secret')
         
         if not vault_id or not secret:
@@ -287,7 +290,7 @@ def register_routes(app: Flask) -> None:
             return jsonify({"error": "A vault with this ID already exists"}), 400
         
         # Create the vault
-        vault = Vault(vault_id=vault_id, user_id=user_id, threshold=threshold, total_shares=num_shares)
+        vault = Vault(vault_id=vault_id, vault_name=vault_name, user_id=user_id, threshold=threshold, total_shares=num_shares)
         db.session.add(vault)
         db.session.flush()  # Get the vault ID without committing
         

@@ -24,6 +24,7 @@ class User(db.Model):
 class Vault(db.Model):
     """Vault model representing a collection of secure key shares."""
     id = db.Column(db.Integer, primary_key=True)
+    vault_name = db.Column(db.String(64), unique=True, nullable=False)
     vault_id = db.Column(db.String(64), unique=True, nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
