@@ -16,7 +16,7 @@ from models import KeyShare, Vault
 from crypto import create_share_key, encrypt_data, decrypt_data, SecureKey
 from secure_config import get_key_version, secure_wipe
 
-def rotate_keys(new_master_key, new_pepper):
+def rotate_keys(new_master_key=None, new_pepper=None):
     """
     Rotate encryption keys by re-encrypting all shares with new keys.
     
@@ -37,8 +37,6 @@ def rotate_keys(new_master_key, new_pepper):
         # Current key version
         new_version = get_key_version() + 1
         current_version = get_key_version()
-
-        print(f"Current Key Version from .env key rotation.py {current_version}")
         
         print(f"Rotating from version {current_version} to {new_version}")
         
@@ -70,6 +68,7 @@ def rotate_keys(new_master_key, new_pepper):
                         current_master_key = os.environ.get("KEY_ESCROW_MASTER_KEY")
                         current_pepper = os.environ.get("KEY_ESCROW_KEY_PEPPER")
                         
+                        #TODO: I don't think we need this if switch, it's falling through to else. test/cleanup
                         # For backwards compatibility with unversioned shares
                         if 'version' not in share_data:
                             print(f"  Share has no version information, using original key derivation")
@@ -110,13 +109,9 @@ def rotate_keys(new_master_key, new_pepper):
                         # Restore the original environment variables
                         if new_master_key is not None:
                             os.environ["KEY_ESCROW_MASTER_KEY"] = new_master_key
-                        elif current_master_key:
-                            os.environ.pop("KEY_ESCROW_MASTER_KEY")
                         
                         if new_pepper is not None:
                             os.environ["KEY_ESCROW_KEY_PEPPER"] = new_pepper
-                        elif current_pepper:
-                            os.environ.pop("KEY_ESCROW_KEY_PEPPER")
                         
                         # Generate new salt and key for re-encryption with current settings
                         new_salt = os.urandom(16)
@@ -183,7 +178,8 @@ def rotate_keys(new_master_key, new_pepper):
                 print("CRITICAL: Key rotation process aborted. Some vaults could not be rotated.")
                 sys.exit(1)
         
-        print("Key rotation complete! Update environment variables with the new key, pepper, and version")
+        print("\n\n\nKey rotation complete! Update environment variables with the new key, pepper, and version. Every rotation requires a version change in the ENV")
+        print(f"THE NEW VERSION FOR THE ENV MUST NOW BE SET TO {new_version}")
 
 def generate_new_keys():
     """
@@ -202,24 +198,24 @@ def generate_new_keys():
 
 if __name__ == "__main__":
     import sys
-    
+
     if len(sys.argv) > 1:
         if sys.argv[1] == "generate":
             generate_new_keys()
         elif sys.argv[1] == "rotate-master-key":
             if len(sys.argv) < 3:
-                print("Error: Old master key required")
-                print("Usage: python key_rotation.py rotate-master-key OLD_MASTER_KEY")
+                print("Error: New master key required")
+                print("Usage: python key_rotation.py rotate-master-key NEW_MASTER_KEY")
                 sys.exit(1)
-            old_master_key = sys.argv[2]
-            rotate_keys(old_master_key=old_master_key)
+            new_master_key = sys.argv[2]
+            rotate_keys(new_master_key=new_master_key)
         elif sys.argv[1] == "rotate-pepper":
             if len(sys.argv) < 3:
-                print("Error: Old pepper required")
-                print("Usage: python key_rotation.py rotate-pepper OLD_PEPPER")
+                print("Error: New pepper required")
+                print("Usage: python key_rotation.py rotate-pepper NEW_PEPPER")
                 sys.exit(1)
-            old_pepper = sys.argv[2]
-            rotate_keys(old_pepper=old_pepper)
+            new_pepper = sys.argv[2]
+            rotate_keys(new_pepper=new_pepper)
         elif sys.argv[1] == "rotate-both":
             if len(sys.argv) < 4:
                 print("Error: Both new master key and new pepper required")
@@ -233,9 +229,9 @@ if __name__ == "__main__":
             print("===================")
             print("Commands:")
             print("  generate                  - Generate new master key and pepper")
-            print("  rotate-master-key KEY     - Rotate using previous master key")
-            print("  rotate-pepper PEPPER      - Rotate using previous pepper")
-            print("  rotate-both KEY PEPPER    - Rotate using both previous values")
+            print("  rotate-master-key KEY     - Rotate using new master key")
+            print("  rotate-pepper PEPPER      - Rotate using new pepper")
+            print("  rotate-both KEY PEPPER    - Rotate using both new values")
             print("  help                      - Show this help message")
         else:
             print(f"Unknown command: {sys.argv[1]}")
