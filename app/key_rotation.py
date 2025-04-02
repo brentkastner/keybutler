@@ -67,29 +67,13 @@ def rotate_keys(new_master_key=None, new_pepper=None):
                         # Set up the environment for decryption using the appropriate key
                         current_master_key = os.environ.get("KEY_ESCROW_MASTER_KEY")
                         current_pepper = os.environ.get("KEY_ESCROW_KEY_PEPPER")
-                        
-                        #TODO: I don't think we need this if switch, it's falling through to else. test/cleanup
-                        # For backwards compatibility with unversioned shares
-                        if 'version' not in share_data:
-                            print(f"  Share has no version information, using original key derivation")
-                            # Use the original key derivation without versioning
-                            share_key, _ = create_share_key(
-                                share.share_index, 
-                                vault.vault_id, 
-                                "system_share", 
-                                salt
-                            )
-                        else:
-                            print(f"  Share has version {share_version}, using versioned key derivation")
-                            # Use versioned key derivation
-                            
-                            # Derive key with correct version
-                            share_key, _ = create_share_key(
-                                share.share_index, 
-                                vault.vault_id, 
-                                "system_share", 
-                                salt
-                            )
+
+                        share_key, _ = create_share_key(
+                            share.share_index, 
+                            vault.vault_id, 
+                            "system_share", 
+                            salt
+                        )
                         
                         sensitive_data.append(share_key)
                         print(f"  Derived decryption key (length: {len(share_key)})")
