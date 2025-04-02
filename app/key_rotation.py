@@ -12,18 +12,16 @@ from typing import List, Dict, Any
 
 from app import db
 from models import KeyShare, Vault
-from crypto import create_share_key, encrypt_data, decrypt_data, derive_key, SecureKey
+from crypto import create_share_key, encrypt_data, decrypt_data, SecureKey
 from secure_config import get_key_version, secure_wipe
 
-
-def rotate_keys():
+#TODO: Test key rotation
+def rotate_keys(old_master_key=None):
     """
     Rotate encryption keys by re-encrypting all shares with new keys.
     
-    This should be run when:
-    1. KEY_ESCROW_KEY_VERSION is incremented
-    2. KEY_ESCROW_MASTER_KEY is changed
-    3. As part of regular security maintenance
+    Args:
+        old_master_key: Optional previous master key when rotating master keys
     """
     print("Starting key rotation process...")
     
@@ -32,7 +30,13 @@ def rotate_keys():
     print(f"Found {len(vaults)} vaults to process")
     
     # Current key version
+    old_version = get_key_version() - 1
     current_version = get_key_version()
+    
+    if old_version < 1:
+        old_version = 1  # Minimum version
+    
+    print(f"Rotating from version {old_version} to {current_version}")
     
     # Process each vault
     for vault in vaults:
@@ -50,20 +54,78 @@ def rotate_keys():
                 share_data = json.loads(share.encrypted_share)
                 salt = base64.b64decode(share_data['salt'])
                 
-                # Decrypt with old key
-                # We use the old key version which is encoded in the encrypted data
-                with SecureKey() as secure_context:
-                    # Derive the old key
-                    old_context = f"share_system_share_{share.share_index}_{vault.vault_id}"
-                    old_key, _ = derive_key(old_context, salt, old_context)
+                # Determine which master key to use for decryption
+                decryption_master_key = old_master_key if old_master_key else None
+                
+                # Get the version from the share data if available
+                share_version = share_data.get('version', old_version)
+                
+                # Temporary store for sensitive data to ensure wiping
+                sensitive_data = []
+                
+                try:
+                    # Set up the environment for decryption using the appropriate key
+                    if decryption_master_key:
+                        # Temporarily override the environment master key
+                        original_master_key = os.environ.get("KEY_ESCROW_MASTER_KEY")
+                        os.environ["KEY_ESCROW_MASTER_KEY"] = decryption_master_key
                     
-                    # Decrypt the data
-                    decrypted_share = decrypt_data(share_data['share'], old_key)
+                    # For backwards compatibility with unversioned shares
+                    if 'version' not in share_data:
+                        # Use the original key derivation without versioning
+                        share_key, _ = create_share_key(
+                            share.share_index, 
+                            vault.vault_id, 
+                            "system_share", 
+                            salt
+                        )
+                    else:
+                        # Use versioned key derivation
+                        # Set the version environment variable temporarily
+                        original_version = os.environ.get("KEY_ESCROW_KEY_VERSION")
+                        os.environ["KEY_ESCROW_KEY_VERSION"] = str(share_version)
+                        
+                        # Derive key with correct version
+                        share_key, _ = create_share_key(
+                            share.share_index, 
+                            vault.vault_id, 
+                            "system_share", 
+                            salt
+                        )
+                        
+                        # Restore original version
+                        if original_version:
+                            os.environ["KEY_ESCROW_KEY_VERSION"] = original_version
+                        else:
+                            os.environ.pop("KEY_ESCROW_KEY_VERSION")
                     
-                    # Generate new salt and key for re-encryption
+                    sensitive_data.append(share_key)
+                    
+                    # Decrypt the data with the appropriate key
+                    decrypted_share = decrypt_data(share_data['share'], share_key)
+                    sensitive_data.append(decrypted_share)
+                    
+                    # Restore the original master key if we changed it
+                    if decryption_master_key:
+                        if original_master_key:
+                            os.environ["KEY_ESCROW_MASTER_KEY"] = original_master_key
+                        else:
+                            os.environ.pop("KEY_ESCROW_MASTER_KEY")
+                    
+                    # Generate new salt and key for re-encryption with current settings
                     new_salt = os.urandom(16)
-                    new_context = f"share_system_share_{share.share_index}_{vault.vault_id}"
-                    new_key, _ = derive_key(new_context, new_salt, new_context)
+                    
+                    # Ensure current version is used for encryption
+                    os.environ["KEY_ESCROW_KEY_VERSION"] = str(current_version)
+                    
+                    # Derive a new key for encryption
+                    new_key, _ = create_share_key(
+                        share.share_index, 
+                        vault.vault_id, 
+                        "system_share", 
+                        new_salt
+                    )
+                    sensitive_data.append(new_key)
                     
                     # Re-encrypt with new key
                     encrypted_share = encrypt_data(decrypted_share, new_key)
@@ -75,13 +137,19 @@ def rotate_keys():
                         "version": current_version
                     })
                     
-                    # Clear sensitive data
-                    secure_wipe(old_key)
-                    secure_wipe(new_key)
-                    # Don't wipe decrypted_share here as it might be used again in the loop
+                finally:
+                    # Clear all sensitive data
+                    for data in sensitive_data:
+                        secure_wipe(data)
+                    
+                    # Restore environment variables if needed
+                    if 'original_version' in locals() and original_version:
+                        os.environ["KEY_ESCROW_KEY_VERSION"] = original_version
             
             except Exception as e:
                 print(f"  Error rotating share {share.id}: {str(e)}")
+                import traceback
+                print(traceback.format_exc())
                 continue
         
         # Commit changes for this vault
@@ -89,7 +157,6 @@ def rotate_keys():
         print(f"Completed rotation for vault {vault.vault_id}")
     
     print("Key rotation complete!")
-
 
 def generate_new_keys():
     """
