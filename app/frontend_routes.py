@@ -250,12 +250,12 @@ def register_frontend_routes(app, db):
         import json
         
         if request.method == 'POST':
-            vault_id = request.form.get('vault_id')
+            vault_name = request.form.get('vault_name')
             secret = request.form.get('secret')
             
             # Validation
-            if not vault_id or not secret:
-                flash('Vault ID and diceware keyphrase are required.', 'danger')
+            if not vault_name or not secret:
+                flash('Vault Name and secret are required.', 'danger')
                 return render_template('create_vault.html')
             
             # Create the vault through the API
@@ -267,8 +267,7 @@ def register_frontend_routes(app, db):
             
             #TODO: Change vaultname and vaultid
             payload = {
-                'vault_name': vault_id,
-                'vault_id': vault_id,
+                'vault_name': vault_name,
                 'secret': secret
             }
             
@@ -288,6 +287,7 @@ def register_frontend_routes(app, db):
                 return render_template(
                     'show_owner_share.html',
                     vault_id=data['vault_id'],
+                    vault_name=data['vault_name'],
                     owner_share=data['owner_share'],
                     total_shares=data['num_shares'],
                     threshold=data['threshold']

@@ -15,14 +15,15 @@
         overflow-x: auto;
     }
     .share-qr {
-        width: 200px;
-        height: 200px;
+        width: 220px;
+        height: 220px;
         margin: 0 auto;
-        background-color: #f8f9fa;
+        background-color: #ffffff;
         border: 1px solid #ddd;
         display: flex;
         align-items: center;
         justify-content: center;
+        padding: 10px;
     }
     .print-only {
         display: none;
@@ -58,15 +59,14 @@
                 
                 <div class="text-center mb-4">
                     <i class="bi bi-key fs-1 text-success"></i>
+                    <p class="lead mt-3">Vault Name: <strong>{{ vault_name }}</strong></p>
                     <p class="lead mt-3">Vault ID: <strong>{{ vault_id }}</strong></p>
                 </div>
                 
                 <div class="row align-items-center mb-4">
                     <div class="col-md-6 text-center mb-4 mb-md-0">
-                        <!-- In a real implementation, generate a QR code of the share -->
-                        <div class="share-qr" id="shareQR">
-                            <div>QR Code of Share</div>
-                        </div>
+                        <div class="share-qr" id="qrcode"></div>
+                        <p class="mt-2 text-muted small">Scan to save your share</p>
                     </div>
                     <div class="col-md-6">
                         <h5>Your Owner Share:</h5>
@@ -126,35 +126,45 @@
         </div>
     </div>
 </div>
+<!-- Hidden fields to store data for QR generation -->
+<input type="hidden" id="ownerShare" value="{{ owner_share }}">
+<input type="hidden" id="vaultId" value="{{ vault_id }}">
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.4.4/build/qrcode.min.js"></script>
+<!-- Include qrcode.js library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        const shareText = document.getElementById('shareText').textContent;
-        const shareQR = document.getElementById('shareQR');
+        const ownerShare = document.getElementById('ownerShare').value;
+        const vaultId = document.getElementById('vaultId').value;
         const copyBtn = document.getElementById('copyShare');
         const printBtn = document.getElementById('printShare');
         
+        // Create a structured object to store in the QR code
+        const shareData = {
+            vaultId: vaultId,
+            shareType: 'owner',
+            share: ownerShare,
+            timestamp: new Date().toISOString()
+        };
+        
+        // Convert to JSON string
+        const shareDataString = JSON.stringify(shareData);
+        
         // Generate QR code
-        QRCode.toCanvas(shareQR, shareText, {
+        new QRCode(document.getElementById("qrcode"), {
+            text: shareDataString,
             width: 200,
-            margin: 1,
-            color: {
-                dark: '#000000',
-                light: '#ffffff'
-            }
-        }, function(error) {
-            if (error) {
-                console.error(error);
-                shareQR.innerHTML = 'Error generating QR code';
-            }
+            height: 200,
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
         });
         
         // Copy button functionality
         copyBtn.addEventListener('click', function() {
-            navigator.clipboard.writeText(shareText).then(function() {
+            navigator.clipboard.writeText(ownerShare).then(function() {
                 copyBtn.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Copied!';
                 setTimeout(function() {
                     copyBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i> Copy Share';

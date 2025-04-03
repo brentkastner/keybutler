@@ -7,6 +7,7 @@ API routes for the application
 import base64
 import json
 import secrets
+import string
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -18,6 +19,10 @@ from auth import verify_totp
 from crypto import ShamirSecretSharing, encrypt_data, create_share_key
 from models import Beneficiary, DeadMansSwitch, KeyShare, User, Vault
 
+def generate_secure_key(length=6):
+    """Generates a secure hopefully unguessable vault_id that is 6 chars"""
+    characters = string.ascii_uppercase + string.ascii_lowercase + string.digits
+    return ''.join(secrets.choice(characters) for _ in range(length)).upper()
 
 def register_routes(app: Flask) -> None:
     """Register all routes with the Flask application."""
@@ -270,8 +275,8 @@ def register_routes(app: Flask) -> None:
             
         #TODO: generate vault_id to be a six char alphanumeric and vaultname to be passed
         
-        vault_id = data.get('vault_id')
-        vault_name = vault_id
+        vault_name = data.get('vault_name')
+        vault_id = generate_secure_key()
         secret = data.get('secret')
         
         if not vault_id or not secret:
@@ -333,6 +338,7 @@ def register_routes(app: Flask) -> None:
         # Log event (without the actual keyphrase)
         from audit import log_event
         log_event(user_id, "vault_created", {
+            "vault_name": vault_name,
             "vault_id": vault_id,
             "num_shares": num_shares,
             "threshold": threshold
@@ -341,6 +347,7 @@ def register_routes(app: Flask) -> None:
         # Return the owner's share - they need to save this securely
         return jsonify({
             "message": "Vault created successfully",
+            "vault_name": vault_name,
             "vault_id": vault_id,
             "owner_share": owner_share,
             "num_shares": num_shares,
@@ -365,6 +372,7 @@ def register_routes(app: Flask) -> None:
             beneficiary_count = Beneficiary.query.filter_by(vault_id=vault.id).count()
             
             result.append({
+                "vault_name": vault.vault_name,
                 "vault_id": vault.vault_id,
                 "created_at": vault.created_at.isoformat(),
                 "share_count": share_count,
@@ -407,6 +415,7 @@ def register_routes(app: Flask) -> None:
             })
         
         return jsonify({
+            "vault_name": vault.vault_name,
             "vault_id": vault.vault_id,
             "created_at": vault.created_at.isoformat(),
             "shares": share_info,
@@ -644,6 +653,7 @@ def register_routes(app: Flask) -> None:
                 # Log event
                 from audit import log_event
                 log_event(user_id, "beneficiary_added", {
+                    "vault_name": vault.vault_name,
                     "vault_id": vault_id,
                     "beneficiary_username": beneficiary_username,
                     "total_shares": new_total_shares,
@@ -653,6 +663,7 @@ def register_routes(app: Flask) -> None:
                 # Return the new configuration with all shares
                 return jsonify({
                     "message": "Beneficiary added successfully",
+                    "vault_name": vault.vault_name,
                     "vault_id": vault_id,
                     "beneficiary_username": beneficiary_username,
                     "beneficiary_share": new_beneficiary_share,
@@ -792,6 +803,7 @@ def register_routes(app: Flask) -> None:
         # Log event
         from audit import log_event
         log_event(None, "access_requested", {
+            "vault_name": vault.vault_name,
             "vault_id": vault_id,
             "beneficiary_username": username
         })
