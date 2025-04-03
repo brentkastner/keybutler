@@ -68,7 +68,8 @@ def progress_switch_alert_stage(switch: DeadMansSwitch, user_id: int) -> None:
         
         # Log the event
         log_event(user_id, "dead_mans_switch_stage1", {"user_id": user_id})
-    
+        
+    #TODO: Put back in the day delay between switch activations
     elif switch.alert_stage == 1: #and datetime.utcnow() > switch.grace_period_end:
         # Second stage: notify beneficiaries
         switch.alert_stage = 2
