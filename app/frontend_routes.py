@@ -255,7 +255,7 @@ def register_frontend_routes(app, db):
             
             # Validation
             if not vault_name or not secret:
-                flash('Vault ID and diceware keyphrase are required.', 'danger')
+                flash('Vault Name and secret are required.', 'danger')
                 return render_template('create_vault.html')
             
             # Create the vault through the API
