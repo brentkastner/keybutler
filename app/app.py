@@ -6,9 +6,10 @@ Main application entry point
 from dotenv import load_dotenv
 import os
 from datetime import datetime, timedelta
-
 from flask import Flask, render_template
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.engine import Engine
+from sqlalchemy import event
 from apscheduler.schedulers.background import BackgroundScheduler
 
 load_dotenv()
@@ -20,6 +21,13 @@ app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", os.urandom(24).hex())
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URI", "sqlite:///escrow_service.db")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=120)  # Short-lived sessions
+
+#Set PRAGMAS for SQLite
+@event.listens_for(Engine, "connect")
+def _set_sqlite_WAL_pragma(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.close()
 
 # Initialize database
 db = SQLAlchemy(app)
