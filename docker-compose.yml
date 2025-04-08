@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  keybutler-app:
+    build: .
+    container_name: keybutler_app
+    restart: always
+    environment:
+      - FLASK_DEBUG=false
+    volumes:
+      - ./data:/app/instance  # Map SQLite to host
+    ports:
+      - "9080:9080"
