@@ -17,6 +17,7 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 from secure_config import get_master_key, get_key_pepper, get_pbkdf2_iterations, get_key_version, secure_wipe
 
+#TODO: Secure Wipe data in each function
 
 def derive_key(password: str, salt: bytes = None, key_context: str = None) -> Tuple[bytes, bytes]:
     """

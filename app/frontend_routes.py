@@ -11,6 +11,7 @@ from models import User, Vault, KeyShare, Beneficiary, DeadMansSwitch
 from crypto import ShamirSecretSharing, decrypt_data, create_share_key
 from app import db
 
+#TODO: check each function and secure wipe everything sensitive
 
 def login_required_frontend(f):
     """Decorator to check if user is logged in for frontend routes."""

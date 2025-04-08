@@ -125,6 +125,7 @@ def secure_wipe(data):
         data_array = data
     else:
         # Not a type we can wipe
+        print(f"THIS SECURE WIPE DID NOT COMPLETE LIKELY A DATA TYPE MISMATCH")
         return
     
     length = len(data_array)

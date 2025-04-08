@@ -16,6 +16,8 @@ load_dotenv()
 # Initialize Flask application
 app = Flask(__name__)
 
+#TODO: Check each function and secure wipe
+
 # Load configuration from environment variables
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", os.urandom(24).hex())
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URI", "sqlite:///escrow_service.db")
