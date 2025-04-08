@@ -310,6 +310,7 @@ def register_frontend_routes(app, db):
     @totp_required_frontend
     def frontend_view_vault(vault_id):
         """View vault details."""
+        vault_id = vault_id.upper()
         user_id = session.get('user_id')
         
         # Find the vault
@@ -328,10 +329,11 @@ def register_frontend_routes(app, db):
     @login_required_frontend
     @totp_required_frontend
     def frontend_add_beneficiary(vault_id):
-        """Add a beneficiary to a vault with secure share management."""
+        """Add one or multiple beneficiaries to a vault with secure share management."""
         import requests
         import json
         
+        vault_id = vault_id.upper()
         user_id = session.get('user_id')
         
         # Find the vault
@@ -344,16 +346,10 @@ def register_frontend_routes(app, db):
         beneficiaries = Beneficiary.query.filter_by(vault_id=vault.id).all()
         
         if request.method == 'POST':
-            # Get basic beneficiary information
-            beneficiary_username = request.form.get('username')
-            beneficiary_email = request.form.get('email')
-            #beneficiary_public_key = request.form.get('public_key')
-            threshold_index = int(request.form.get('threshold_index', 1))
             owner_share = request.form.get('owner_share')
             
-            # Validation for basic fields
-            if not all([beneficiary_username, beneficiary_email, owner_share]):
-                flash('All fields are required, including your owner share.', 'danger')
+            if not owner_share:
+                flash('Your owner share is required.', 'danger')
                 return render_template('add_beneficiary.html', vault=vault, beneficiaries=beneficiaries)
             
             # Collect shares from existing beneficiaries
@@ -377,7 +373,37 @@ def register_frontend_routes(app, db):
                     'share_value': beneficiary_share
                 }
             
-            # Add the beneficiary through the API
+            # Process beneficiaries
+            beneficiaries_data = []
+            
+            # Determine how many beneficiaries were submitted
+            # We'll look for username_1, username_2, etc.
+            index = 1
+            while True:
+                username_key = f"username_{index}"
+                email_key = f"email_{index}"
+                
+                username = request.form.get(username_key)
+                email = request.form.get(email_key)
+                
+                if not username or not email:
+                    break
+                
+                threshold_index = int(request.form.get(f"threshold_index_{index}", 1))
+                
+                beneficiaries_data.append({
+                    'username': username,
+                    'email': email,
+                    'threshold_index': threshold_index
+                })
+                
+                index += 1
+            
+            if not beneficiaries_data:
+                flash('At least one beneficiary is required.', 'danger')
+                return render_template('add_beneficiary.html', vault=vault, beneficiaries=beneficiaries)
+            
+            # Add the beneficiaries through the API
             api_url = url_for('add_beneficiary', _external=True)
             headers = {'Content-Type': 'application/json'}
             
@@ -387,9 +413,7 @@ def register_frontend_routes(app, db):
             # Prepare payload with owner share and beneficiary shares
             payload = {
                 'vault_id': vault_id,
-                'username': beneficiary_username,
-                'email': beneficiary_email,
-                'threshold_index': threshold_index,
+                'beneficiaries': beneficiaries_data,
                 'owner_share': owner_share,
                 'beneficiary_shares': beneficiary_shares
             }
@@ -415,6 +439,14 @@ def register_frontend_routes(app, db):
                     # Success
                     data = response.json()
                     
+                    # Format the new beneficiary shares for display
+                    new_beneficiaries_data = []
+                    for ben_data in data.get('new_beneficiaries', []):
+                        new_beneficiaries_data.append({
+                            'username': ben_data['username'],
+                            'share': ben_data['share']
+                        })
+                    
                     # Format the existing beneficiary shares for display
                     existing_beneficiaries_data = []
                     for beneficiary_data in data.get('existing_beneficiary_shares', []):
@@ -424,15 +456,14 @@ def register_frontend_routes(app, db):
                         })
                     
                     # Log successful beneficiary addition
-                    print(f"Successfully added beneficiary {beneficiary_username} to vault {vault_id}")
+                    print(f"Successfully added {len(new_beneficiaries_data)} beneficiaries to vault {vault_id}")
                     print(f"Total shares: {data['total_shares']}, Threshold: {data['threshold']}")
                     
                     # Now we have the data including all shares
                     return render_template(
                         'show_all_shares.html',
                         vault_id=data['vault_id'],
-                        beneficiary_username=data['beneficiary_username'],
-                        beneficiary_share=data['beneficiary_share'],
+                        new_beneficiaries=new_beneficiaries_data,
                         owner_share=data['owner_share'],
                         existing_beneficiaries=existing_beneficiaries_data,
                         total_shares=data['total_shares'],
@@ -453,7 +484,7 @@ def register_frontend_routes(app, db):
                     except Exception as parse_err:
                         print(f"Error parsing API response: {str(parse_err)}")
                         print(f"Raw response: {response.content.decode()[:500]}")
-                        flash(f"Error: Could not add beneficiary. Status code: {response.status_code}", 'danger')
+                        flash(f"Error: Could not add beneficiaries. Status code: {response.status_code}", 'danger')
                     
                     return render_template('add_beneficiary.html', vault=vault, beneficiaries=beneficiaries)
             except Exception as e:
@@ -509,6 +540,7 @@ def register_frontend_routes(app, db):
         import secrets
         
         # Find the vault
+        vault_id = vault_id.upper()
         vault = Vault.query.filter_by(vault_id=vault_id).first()
         if not vault:
             flash('Vault not found.', 'danger')

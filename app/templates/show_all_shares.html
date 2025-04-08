@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 
-{% block title %}Redistributed Shares - Zero Trust Key Escrow Service{% endblock %}
+{% block title %}Shares Distributed - Zero Trust Key Escrow Service{% endblock %}
 
 {% block content %}
 <div class="row mb-4">
@@ -9,104 +9,218 @@
             <a href="{{ url_for('frontend_view_vault', vault_id=vault_id) }}" class="btn btn-sm btn-outline-secondary me-3">
                 <i class="bi bi-arrow-left"></i> Back to Vault
             </a>
-            <h1 class="mb-0">Key Redistribution Complete</h1>
+            <h1 class="mb-0">Shares Distribution</h1>
         </div>
-        <p class="text-muted">Vault: {{ vault_name }} {{ vault_id }}</p>
+        <p class="text-muted">Vault ID: <span class="badge bg-secondary">{{ vault_id }}</span></p>
     </div>
 </div>
 
 <div class="row justify-content-center">
-    <div class="col-lg-8">
+    <div class="col-lg-10">
         <div class="card shadow-lg border-0 mb-4">
-            <div class="card-header bg-success text-white py-3">
-                <h3 class="mb-0">Success!</h3>
-            </div>
             <div class="card-body p-4">
-                <div class="alert alert-warning mb-4">
+                <div class="alert alert-warning">
                     <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                    <strong>IMPORTANT:</strong> These shares will only be shown ONCE. Record them securely and distribute them to the respective parties.
+                    <strong>IMPORTANT:</strong> These shares will only be shown once. Save them securely and distribute them to their respective owners.
                 </div>
                 
                 <div class="mb-4">
-                    <h4>New Beneficiary: {{ beneficiary_username }}</h4>
-                    <p class="text-muted">Successfully added with the following configuration:</p>
-                    <ul>
-                        <li>Total shares: {{ total_shares }}</li>
-                        <li>Threshold needed to reconstruct: {{ threshold }}</li>
-                    </ul>
-                </div>
-                
-                <h4 class="mb-3">All Redistributed Shares</h4>
-                
-                <!-- Owner Share -->
-                <div class="card mb-3">
-                    <div class="card-header bg-primary text-white">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h5 class="mb-0">Owner Share</h5>
-                            <button class="btn btn-sm btn-light copy-btn" data-share="owner_share">
-                                <i class="bi bi-clipboard"></i> Copy
-                            </button>
+                    <h3 class="mb-3">Your New Owner Share</h3>
+                    <div class="card mb-3 shadow-sm border-primary">
+                        <div class="card-header bg-primary text-white">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h5 class="card-title mb-0"><i class="bi bi-person-badge me-2"></i>Owner Share</h5>
+                                <span class="badge bg-light text-dark">Vault: {{ vault_id }}</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <span class="text-muted">Your new share key</span>
+                                <button type="button" class="btn btn-sm btn-outline-primary copy-btn" data-content="{{ owner_share }}">
+                                    <i class="bi bi-clipboard me-1"></i> Copy
+                                </button>
+                            </div>
+                            <div class="alert alert-light p-3 mb-2 position-relative" style="word-break: break-all; overflow-wrap: break-word;">
+                                <pre class="mb-0 user-select-all" style="white-space: pre-wrap; word-wrap: break-word;">{{ owner_share }}</pre>
+                            </div>
+                            <div class="mt-3 d-flex justify-content-between">
+                                <button type="button" class="btn btn-outline-secondary btn-sm show-qr-btn" data-content="{{ owner_share }}">
+                                    <i class="bi bi-qr-code me-1"></i> Show QR Code
+                                </button>
+                                <button type="button" class="btn btn-outline-primary btn-sm download-btn" data-content="{{ owner_share }}" data-filename="owner_share_{{ vault_id }}.txt">
+                                    <i class="bi bi-download me-1"></i> Download as File
+                                </button>
+                            </div>
                         </div>
                     </div>
-                    <div class="card-body">
-                        <div class="alert alert-secondary overflow-auto">
-                            <pre class="mb-0" id="owner_share">{{ owner_share }}</pre>
-                        </div>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle-fill me-2"></i>
+                        This is your new owner share. Make sure to save it in a secure location. Your previous owner share is no longer valid.
                     </div>
                 </div>
                 
-                <!-- New Beneficiary Share -->
-                <div class="card mb-3">
+                {% if new_beneficiaries and new_beneficiaries|length > 0 %}
+                <div class="mb-4">
+                    <h3 class="mb-3">New Beneficiary Shares</h3>
+                    <div class="row">
+                        {% for beneficiary in new_beneficiaries %}
+                        <div class="col-lg-6 mb-3">
+                            <div class="card h-100 shadow-sm border-success">
+                                <div class="card-header bg-success text-white">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <h5 class="card-title mb-0"><i class="bi bi-person-plus me-2"></i>{{ beneficiary.username }}</h5>
+                                        <span class="badge bg-light text-dark">Vault: {{ vault_id }}</span>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start mb-3">
+                                        <span class="text-muted">New beneficiary share</span>
+                                        <button type="button" class="btn btn-sm btn-outline-success copy-btn" data-content="{{ beneficiary.share }}">
+                                            <i class="bi bi-clipboard me-1"></i> Copy
+                                        </button>
+                                    </div>
+                                    <div class="alert alert-light p-3 mb-2 position-relative" style="word-break: break-all; overflow-wrap: break-word;">
+                                        <pre class="mb-0 user-select-all" style="white-space: pre-wrap; word-wrap: break-word;">{{ beneficiary.share }}</pre>
+                                    </div>
+                                    <div class="mt-3 d-flex justify-content-between">
+                                        <button type="button" class="btn btn-outline-secondary btn-sm show-qr-btn" data-content="{{ beneficiary.share }}">
+                                            <i class="bi bi-qr-code me-1"></i> Show QR Code
+                                        </button>
+                                        <button type="button" class="btn btn-outline-success btn-sm download-btn" data-content="{{ beneficiary.share }}" data-filename="{{ beneficiary.username }}_share_{{ vault_id }}.txt">
+                                            <i class="bi bi-download me-1"></i> Download as File
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if existing_beneficiaries and existing_beneficiaries|length > 0 %}
+                <div class="mb-4">
+                    <h3 class="mb-3">Updated Existing Beneficiary Shares</h3>
+                    <div class="alert alert-warning mb-3">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        <strong>Important:</strong> These are updated shares for your existing beneficiaries. Their previous shares are no longer valid. You must distribute these new shares to them.
+                    </div>
+                    <div class="row">
+                        {% for beneficiary in existing_beneficiaries %}
+                        <div class="col-lg-6 mb-3">
+                            <div class="card h-100 shadow-sm border-warning">
+                                <div class="card-header bg-warning text-dark">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <h5 class="card-title mb-0"><i class="bi bi-person-check me-2"></i>{{ beneficiary.username }}</h5>
+                                        <span class="badge bg-light text-dark">Vault: {{ vault_id }}</span>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start mb-3">
+                                        <span class="text-muted">Updated share key</span>
+                                        <button type="button" class="btn btn-sm btn-outline-warning copy-btn" data-content="{{ beneficiary.share }}">
+                                            <i class="bi bi-clipboard me-1"></i> Copy
+                                        </button>
+                                    </div>
+                                    <div class="alert alert-light p-3 mb-2 position-relative" style="word-break: break-all; overflow-wrap: break-word;">
+                                        <pre class="mb-0 user-select-all" style="white-space: pre-wrap; word-wrap: break-word;">{{ beneficiary.share }}</pre>
+                                    </div>
+                                    <div class="mt-3 d-flex justify-content-between">
+                                        <button type="button" class="btn btn-outline-secondary btn-sm show-qr-btn" data-content="{{ beneficiary.share }}">
+                                            <i class="bi bi-qr-code me-1"></i> Show QR Code
+                                        </button>
+                                        <button type="button" class="btn btn-outline-warning btn-sm download-btn" data-content="{{ beneficiary.share }}" data-filename="{{ beneficiary.username }}_updated_share_{{ vault_id }}.txt">
+                                            <i class="bi bi-download me-1"></i> Download as File
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="card mb-4 shadow-sm">
                     <div class="card-header bg-info text-white">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h5 class="mb-0">New Beneficiary: {{ beneficiary_username }}</h5>
-                            <button class="btn btn-sm btn-light copy-btn" data-share="new_beneficiary_share">
-                                <i class="bi bi-clipboard"></i> Copy
-                            </button>
-                        </div>
+                        <h4 class="mb-0"><i class="bi bi-gear me-2"></i>Vault Configuration</h4>
                     </div>
                     <div class="card-body">
-                        <div class="alert alert-secondary overflow-auto">
-                            <pre class="mb-0" id="new_beneficiary_share">{{ beneficiary_share }}</pre>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title">Total Shares</h5>
+                                        <h2 class="mb-0">{{ total_shares }}</h2>
+                                        <small class="text-muted">Number of shares created</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="card bg-light">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title">Threshold</h5>
+                                        <h2 class="mb-0">{{ threshold }}</h2>
+                                        <small class="text-muted">Number of shares needed to reconstruct the secret</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="alert alert-info mt-3 mb-0">
+                            <p class="mb-1"><strong>Recovery Requirements:</strong> You need {{ threshold }} shares out of the {{ total_shares }} total shares to recover the secret.</p>
+                            <p class="mb-0"><strong>Vault ID:</strong> <code>{{ vault_id }}</code></p>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Existing Beneficiary Shares -->
-                {% for beneficiary in existing_beneficiaries %}
-                <div class="card mb-3">
-                    <div class="card-header bg-secondary text-white">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h5 class="mb-0">Beneficiary: {{ beneficiary.username }}</h5>
-                            <button class="btn btn-sm btn-light copy-btn" data-share="beneficiary_share_{{ loop.index }}">
-                                <i class="bi bi-clipboard"></i> Copy
-                            </button>
+                <div class="alert alert-danger mb-4">
+                    <div class="d-flex">
+                        <div class="me-3">
+                            <i class="bi bi-shield-lock-fill" style="font-size: 2rem;"></i>
                         </div>
-                    </div>
-                    <div class="card-body">
-                        <div class="alert alert-secondary overflow-auto">
-                            <pre class="mb-0" id="beneficiary_share_{{ loop.index }}">{{ beneficiary.share }}</pre>
+                        <div>
+                            <h4><strong>Security Warning:</strong></h4>
+                            <p>The shares shown on this page will not be displayed again. Make sure to:</p>
+                            <ul class="mb-0">
+                                <li>Save your owner share in a secure location</li>
+                                <li>Distribute beneficiary shares through secure channels</li>
+                                <li>Remind beneficiaries to store their shares securely</li>
+                                <li>Consider using the download options for offline storage</li>
+                            </ul>
                         </div>
                     </div>
                 </div>
-                {% endfor %}
                 
-                <div class="alert alert-danger mt-4">
-                    <i class="bi bi-shield-exclamation me-2"></i>
-                    <strong>Security Warning:</strong> 
-                    <ul class="mb-0 mt-2">
-                        <li>Securely distribute these shares to their respective owners.</li>
-                        <li>Do not store all shares in the same place.</li>
-                        <li>Consider using encrypted channels to share these values.</li>
-                        <li>Once you navigate away from this page, these values cannot be recovered.</li>
-                    </ul>
-                </div>
-                
-                <div class="d-grid gap-2 mt-4">
+                <div class="d-grid">
                     <a href="{{ url_for('frontend_view_vault', vault_id=vault_id) }}" class="btn btn-primary btn-lg">
-                        <i class="bi bi-safe me-2"></i>Back to Vault
+                        <i class="bi bi-check-circle me-2"></i>I've Secured All Shares - Return to Vault
                     </a>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- QR Code Modal -->
+<div class="modal fade" id="qrCodeModal" tabindex="-1" aria-labelledby="qrCodeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="qrCodeModalLabel">Share QR Code</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <div id="qrcode-container"></div>
+                <div class="mt-3 mb-2">
+                    <small class="text-muted">Scan this QR code with a secure app to transfer the share</small>
+                </div>
+                <div id="qr-code-warning" class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <small>Note: Some shares might be too large for reliable QR code scanning. Use the copy or download options if scanning fails.</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
@@ -114,93 +228,115 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/qrcode.js@1.0.0/qrcode.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Set up clipboard functionality
+        // Handle copy buttons
         document.querySelectorAll('.copy-btn').forEach(button => {
             button.addEventListener('click', function() {
-                const shareId = this.getAttribute('data-share');
-                const shareText = document.getElementById(shareId).textContent;
-                
-                navigator.clipboard.writeText(shareText).then(() => {
-                    // Show success indicator
-                    const originalHtml = this.innerHTML;
-                    this.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
-                    this.classList.add('btn-success');
-                    this.classList.remove('btn-light');
+                const content = this.dataset.content;
+                navigator.clipboard.writeText(content).then(() => {
+                    // Change button text temporarily
+                    const originalHTML = this.innerHTML;
+                    this.innerHTML = '<i class="bi bi-check-circle me-1"></i> Copied!';
                     
-                    // Reset after 2 seconds
+                    // Get the current button style and save original class
+                    const currentClass = this.classList.contains('btn-outline-primary') 
+                        ? 'btn-outline-primary' 
+                        : this.classList.contains('btn-outline-success') 
+                            ? 'btn-outline-success' 
+                            : 'btn-outline-warning';
+                            
+                    this.classList.replace(currentClass, 'btn-success');
+                    
                     setTimeout(() => {
-                        this.innerHTML = originalHtml;
-                        this.classList.add('btn-light');
-                        this.classList.remove('btn-success');
-                    }, 2000);
+                        this.innerHTML = originalHTML;
+                        this.classList.replace('btn-success', currentClass);
+                    }, 1500);
                 }).catch(err => {
                     console.error('Failed to copy: ', err);
-                    alert('Failed to copy to clipboard. Please select and copy manually.');
+                    alert('Failed to copy content. Please try again.');
                 });
             });
         });
         
-        // Add QR code generation for shares
-        const addQRBtnTo = (elementId) => {
-            const element = document.getElementById(elementId);
-            if (!element) return;
-            
-            const container = element.closest('.card-body');
-            const btnGroup = document.createElement('div');
-            btnGroup.className = 'text-center mt-3';
-            btnGroup.innerHTML = `
-                <button type="button" class="btn btn-outline-secondary qr-gen-btn" data-share="${elementId}">
-                    <i class="bi bi-qr-code me-1"></i> Generate QR Code
-                </button>
-            `;
-            
-            container.appendChild(btnGroup);
-        };
+        // Handle QR code generation
+        const qrModal = new bootstrap.Modal(document.getElementById('qrCodeModal'));
+        const qrContainer = document.getElementById('qrcode-container');
+        const qrWarning = document.getElementById('qr-code-warning');
         
-        // Add to all shares
-        document.querySelectorAll('pre[id^="owner_share"], pre[id^="new_beneficiary_share"], pre[id^="beneficiary_share_"]').forEach(pre => {
-            addQRBtnTo(pre.id);
+        document.querySelectorAll('.show-qr-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const content = this.dataset.content;
+                
+                // Clear previous QR code
+                qrContainer.innerHTML = '';
+                
+                // Show warning for long content
+                if (content.length > 300) {
+                    qrWarning.style.display = 'block';
+                } else {
+                    qrWarning.style.display = 'none';
+                }
+                
+                // Generate new QR code
+                QRCode.toCanvas(
+                    document.createElement('canvas'),
+                    content,
+                    {
+                        errorCorrectionLevel: 'H',
+                        margin: 1,
+                        width: 300,
+                        color: {
+                            dark: '#000000',
+                            light: '#ffffff'
+                        }
+                    },
+                    function(error, canvas) {
+                        if (error) {
+                            console.error(error);
+                            qrContainer.textContent = 'Error generating QR code - content may be too large';
+                            qrWarning.style.display = 'block';
+                        } else {
+                            qrContainer.appendChild(canvas);
+                        }
+                    }
+                );
+                
+                // Show the modal
+                qrModal.show();
+            });
         });
         
-        // Handle QR code generation (simulated for prototype)
-        document.addEventListener('click', function(e) {
-            if (e.target.classList.contains('qr-gen-btn') || e.target.closest('.qr-gen-btn')) {
-                const btn = e.target.classList.contains('qr-gen-btn') ? e.target : e.target.closest('.qr-gen-btn');
-                const shareId = btn.dataset.share;
-                const shareData = document.getElementById(shareId).textContent;
+        // Handle download buttons
+        document.querySelectorAll('.download-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const content = this.dataset.content;
+                const filename = this.dataset.filename;
                 
-                // In a production environment, this would generate and display a QR code
-                // For this prototype, just show an alert
-                alert('A QR code would be generated here containing the share data for ' + shareId);
+                const blob = new Blob([content], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
                 
-                /* 
-                // Production code would be something like:
-                const qrContainer = document.createElement('div');
-                qrContainer.id = shareId + '_qr';
-                qrContainer.className = 'text-center mt-3 p-3 bg-light rounded';
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
                 
-                // Generate QR code (using a library like qrcode.js)
-                new QRCode(qrContainer, {
-                    text: shareData,
-                    width: 200,
-                    height: 200
-                });
-                
-                // Add download button
-                const downloadBtn = document.createElement('button');
-                downloadBtn.className = 'btn btn-sm btn-outline-primary mt-2';
-                downloadBtn.innerHTML = '<i class="bi bi-download"></i> Download QR Code';
-                qrContainer.appendChild(downloadBtn);
-                
-                // Add QR code container after the button
-                btn.parentElement.after(qrContainer);
-                
-                // Hide the generate button
-                btn.style.display = 'none';
-                */
-            }
+                // Cleanup
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+            });
+        });
+        
+        // Alert users before leaving the page
+        window.addEventListener('beforeunload', function(e) {
+            const confirmationMessage = 'WARNING: You are about to leave this page. The shares shown here will not be displayed again. Make sure you have saved all shares securely.';
+            
+            e.returnValue = confirmationMessage;
+            return confirmationMessage;
         });
     });
 </script>
