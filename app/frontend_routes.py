@@ -6,7 +6,7 @@ Frontend routes for web interface
 
 from flask import Flask, render_template, redirect, url_for, request, session, flash
 from functools import wraps
-import json, base64
+import json, base64, os
 from models import User, Vault, KeyShare, Beneficiary, DeadMansSwitch
 from crypto import ShamirSecretSharing, decrypt_data, create_share_key
 from app import db
@@ -261,6 +261,10 @@ def register_frontend_routes(app, db):
             
             # Create the vault through the API
             api_url = url_for('create_vault', _external=True)
+
+            if os.getenv("RUNTIME") == 'prod':
+                api_url = api_url.replace("http", "https")
+
             headers = {'Content-Type': 'application/json'}
             
             # Include session cookie to maintain authentication
@@ -271,7 +275,7 @@ def register_frontend_routes(app, db):
                 'vault_name': vault_name,
                 'secret': secret
             }
-            
+            print(f"API URL = {api_url} ")
             response = requests.post(
                 api_url, 
                 headers=headers,
@@ -405,6 +409,10 @@ def register_frontend_routes(app, db):
             
             # Add the beneficiaries through the API
             api_url = url_for('add_beneficiary', _external=True)
+
+            if os.getenv("RUNTIME") == 'prod':
+                api_url = api_url.replace("http", "https")
+
             headers = {'Content-Type': 'application/json'}
             
             # Include session cookie to maintain authentication
