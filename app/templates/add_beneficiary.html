@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 
-{% block title %}Add Beneficiary - Zero Trust Key Escrow Service{% endblock %}
+{% block title %}Add Beneficiaries - Zero Trust Key Escrow Service{% endblock %}
 
 {% block content %}
 <div class="row mb-4">
@@ -9,20 +9,20 @@
             <a href="{{ url_for('frontend_view_vault', vault_id=vault.vault_id) }}" class="btn btn-sm btn-outline-secondary me-3">
                 <i class="bi bi-arrow-left"></i> Back to Vault
             </a>
-            <h1 class="mb-0">Add Beneficiary</h1>
+            <h1 class="mb-0">Add Beneficiaries</h1>
         </div>
         <p class="text-muted">Vault: {{ vault.vault_name }} <small>({{ vault.vault_id }})</small></p>
     </div>
 </div>
 
 <div class="row justify-content-center">
-    <div class="col-lg-8">
+    <div class="col-lg-10">
         <div class="card shadow-lg border-0">
             <div class="card-body p-4">
-                <form method="post" action="{{ url_for('frontend_add_beneficiary', vault_id=vault.vault_id) }}">
+                <form method="post" action="{{ url_for('frontend_add_beneficiary', vault_id=vault.vault_id) }}" id="beneficiaries-form">
                     <div class="alert alert-info mb-4">
                         <i class="bi bi-info-circle-fill me-2"></i>
-                        <strong>Note:</strong> Adding a beneficiary requires redistributing the vault's secret shares. You will need to provide your owner share to complete this process. If there are existing beneficiaries, you'll also need to provide their shares.
+                        <strong>Note:</strong> Adding beneficiaries requires redistributing the vault's secret shares. You will need to provide your owner share to complete this process. If there are existing beneficiaries, you'll also need to provide their shares.
                     </div>
                     
                     {% if beneficiaries and beneficiaries|length > 0 %}
@@ -55,33 +55,45 @@
                     </div>
                     {% endif %}
                     
-                    <div class="mb-3">
-                        <label for="username" class="form-label">Beneficiary Username</label>
-                        <input type="text" class="form-control" id="username" name="username" required>
-                        <div class="form-text">The username the beneficiary will use to identify themselves</div>
+                    <div id="beneficiaries-container">
+                        <h4 class="mb-3">New Beneficiaries</h4>
+                        
+                        <!-- Beneficiary template that will be cloned -->
+                        <div class="card mb-3 beneficiary-card" data-index="1">
+                            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">Beneficiary #1</h5>
+                                <button type="button" class="btn btn-sm btn-outline-danger remove-beneficiary">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="username_1" class="form-label">Username</label>
+                                        <input type="text" class="form-control" id="username_1" name="username_1" required>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="email_1" class="form-label">Email Address</label>
+                                        <input type="email" class="form-control" id="email_1" name="email_1" required>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="threshold_index_1" class="form-label">Priority Level</label>
+                                    <select class="form-select" id="threshold_index_1" name="threshold_index_1">
+                                        <option value="1">1 - Highest Priority</option>
+                                        <option value="2">2 - Medium Priority</option>
+                                        <option value="3">3 - Low Priority</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     
-                    <div class="mb-3">
-                        <label for="email" class="form-label">Email Address</label>
-                        <input type="email" class="form-control" id="email" name="email" required>
-                        <div class="form-text">The beneficiary will be notified at this email address</div>
+                    <div class="d-grid mb-4">
+                        <button type="button" class="btn btn-outline-success" id="add-beneficiary-btn">
+                            <i class="bi bi-plus-circle me-2"></i>Add Another Beneficiary
+                        </button>
                     </div>
-                    
-                    <!-- <div class="mb-3">
-                        <label for="public_key" class="form-label">Public Key</label>
-                        <textarea class="form-control" id="public_key" name="public_key" rows="5" required></textarea>
-                        <div class="form-text">The beneficiary's PGP/GPG public key used to encrypt the shared key</div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="threshold_index" class="form-label">Threshold Index</label>
-                        <select class="form-select" id="threshold_index" name="threshold_index">
-                            <option value="1">1 - Highest Priority</option>
-                            <option value="2">2 - Medium Priority</option>
-                            <option value="3">3 - Low Priority</option>
-                        </select>
-                        <div class="form-text">Determines priority when multiple beneficiaries are present</div>
-                    </div> -->
                     
                     <div class="mb-4">
                         <label for="owner_share" class="form-label">Your Owner Share</label>
@@ -99,7 +111,7 @@
                     
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-primary btn-lg">
-                            <i class="bi bi-plus-circle me-2"></i>Add Beneficiary and Redistribute Shares
+                            <i class="bi bi-plus-circle me-2"></i>Add Beneficiaries and Redistribute Shares
                         </button>
                         <a href="{{ url_for('frontend_view_vault', vault_id=vault.vault_id) }}" class="btn btn-outline-secondary">Cancel</a>
                     </div>
@@ -113,26 +125,91 @@
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Add file upload for public key
-        const publicKeyTextarea = document.getElementById('public_key');
-        const fileUploadContainer = document.createElement('div');
-        fileUploadContainer.className = 'mt-2';
-        fileUploadContainer.innerHTML = `
-            <label for="public_key_file" class="form-label">Or upload public key file:</label>
-            <input class="form-control" type="file" id="public_key_file">
-        `;
+        // Handle adding beneficiaries
+        const addBeneficiaryBtn = document.getElementById('add-beneficiary-btn');
+        const beneficiariesContainer = document.getElementById('beneficiaries-container');
         
-        publicKeyTextarea.parentNode.insertBefore(fileUploadContainer, publicKeyTextarea.nextSibling);
+        // Function to update beneficiary numbering
+        function updateBeneficiaryNumbers() {
+            const cards = beneficiariesContainer.querySelectorAll('.beneficiary-card');
+            cards.forEach((card, index) => {
+                const newIndex = index + 1;
+                card.setAttribute('data-index', newIndex);
+                card.querySelector('h5').textContent = `Beneficiary #${newIndex}`;
+                
+                // Update input IDs and names
+                const inputs = card.querySelectorAll('input, select');
+                inputs.forEach(input => {
+                    const baseName = input.name.split('_')[0];
+                    input.name = `${baseName}_${newIndex}`;
+                    input.id = `${baseName}_${newIndex}`;
+                    
+                    // Update corresponding labels
+                    const label = card.querySelector(`label[for="${baseName}_${index + 1}"]`);
+                    if (label) {
+                        label.setAttribute('for', `${baseName}_${newIndex}`);
+                    }
+                });
+            });
+        }
         
-        const fileInput = document.getElementById('public_key_file');
-        fileInput.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    publicKeyTextarea.value = e.target.result;
-                };
-                reader.readAsText(file);
+        // Add a new beneficiary
+        addBeneficiaryBtn.addEventListener('click', function() {
+            const cards = beneficiariesContainer.querySelectorAll('.beneficiary-card');
+            const lastIndex = cards.length;
+            const newIndex = lastIndex + 1;
+            
+            // Clone the first beneficiary card
+            const template = beneficiariesContainer.querySelector('.beneficiary-card').cloneNode(true);
+            template.setAttribute('data-index', newIndex);
+            template.querySelector('h5').textContent = `Beneficiary #${newIndex}`;
+            
+            // Clear input values
+            template.querySelectorAll('input').forEach(input => {
+                input.value = '';
+                
+                // Update input names and IDs
+                const baseName = input.name.split('_')[0];
+                input.name = `${baseName}_${newIndex}`;
+                input.id = `${baseName}_${newIndex}`;
+            });
+            
+            // Update select names and IDs
+            template.querySelectorAll('select').forEach(select => {
+                const baseName = select.name.split('_')[0];
+                select.name = `${baseName}_${newIndex}`;
+                select.id = `${baseName}_${newIndex}`;
+            });
+            
+            // Update labels
+            template.querySelectorAll('label').forEach(label => {
+                const forAttr = label.getAttribute('for');
+                const baseName = forAttr.split('_')[0];
+                label.setAttribute('for', `${baseName}_${newIndex}`);
+            });
+            
+            // Append the new card
+            beneficiariesContainer.appendChild(template);
+            
+            // Scroll to the new card
+            template.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+        
+        // Event delegation for remove buttons
+        beneficiariesContainer.addEventListener('click', function(e) {
+            if (e.target.classList.contains('remove-beneficiary') || e.target.closest('.remove-beneficiary')) {
+                const btn = e.target.classList.contains('remove-beneficiary') ? e.target : e.target.closest('.remove-beneficiary');
+                const card = btn.closest('.beneficiary-card');
+                
+                // Don't remove if it's the last card
+                const cards = beneficiariesContainer.querySelectorAll('.beneficiary-card');
+                if (cards.length <= 1) {
+                    alert('You must have at least one beneficiary.');
+                    return;
+                }
+                
+                card.remove();
+                updateBeneficiaryNumbers();
             }
         });
         
@@ -170,9 +247,9 @@
         });
         
         // Form validation
-        const form = document.querySelector('form');
+        const form = document.getElementById('beneficiaries-form');
         form.addEventListener('submit', function(e) {
-            const requiredFields = document.querySelectorAll('textarea[required], input[required]');
+            const requiredFields = form.querySelectorAll('textarea[required], input[required]');
             let allValid = true;
             
             requiredFields.forEach(field => {
@@ -204,7 +281,7 @@
                 }
                 
                 // Scroll to first error
-                document.querySelector('.is-invalid').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                form.querySelector('.is-invalid').scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
         });
     });

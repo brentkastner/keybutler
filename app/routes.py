@@ -391,7 +391,7 @@ def register_routes(app: Flask) -> None:
         """Get details for a specific vault."""
         user_id = session.get('user_id')
         
-        vault = Vault.query.filter_by(vault_id=vault_id, user_id=user_id).first()
+        vault = Vault.query.filter_by(vault_id=vault_id.upper(), user_id=user_id).first()
         if not vault:
             return jsonify({"error": "Vault not found or you don't have access"}), 404
         
@@ -432,11 +432,11 @@ def register_routes(app: Flask) -> None:
     @require_totp
     def add_beneficiary():
         """
-        Add a beneficiary to a vault and generate a new share for them.
+        Add one or multiple beneficiaries to a vault and generate new shares for them.
         
         This process requires the owner's share and any existing beneficiary shares
-        to reconstruct the secret, then redistributes shares with one new share 
-        for the beneficiary.
+        to reconstruct the secret, then redistributes shares with new shares 
+        for all beneficiaries.
         """
         from secure_config import secure_wipe
         from crypto import create_share_key, encrypt_data, decrypt_data, SecureKey
@@ -446,15 +446,32 @@ def register_routes(app: Flask) -> None:
             return jsonify({"error": "No JSON data received"}), 400
             
         vault_id = data.get('vault_id')
-        beneficiary_username = data.get('username')
-        beneficiary_email = data.get('email')
-        threshold_index = data.get('threshold_index', 1)
         owner_share = data.get('owner_share')  # Owner's share
         beneficiary_shares = data.get('beneficiary_shares', {})  # Additional beneficiary shares
         
-        # All basic fields are required
-        if not all([vault_id, beneficiary_username, beneficiary_email, owner_share]):
-            return jsonify({"error": "All fields are required, including owner_share"}), 400
+        # Handle both single and multiple beneficiaries
+        beneficiaries_data = data.get('beneficiaries', [])
+        if not beneficiaries_data:
+            # For backward compatibility with single beneficiary mode
+            beneficiary_username = data.get('username').lower()
+            beneficiary_email = data.get('email')
+            threshold_index = data.get('threshold_index', 1)
+            
+            if beneficiary_username and beneficiary_email:
+                beneficiaries_data = [{
+                    'username': beneficiary_username,
+                    'email': beneficiary_email,
+                    'threshold_index': threshold_index
+                }]
+        
+        # Basic validation
+        if not vault_id or not owner_share or not beneficiaries_data:
+            return jsonify({"error": "Vault ID, owner share, and at least one beneficiary are required"}), 400
+        
+        # Validate each beneficiary has required fields
+        for i, ben in enumerate(beneficiaries_data):
+            if not ben.get('username') or not ben.get('email'):
+                return jsonify({"error": f"Beneficiary #{i+1} is missing username or email"}), 400
         
         user_id = session.get('user_id')
         
@@ -463,26 +480,31 @@ def register_routes(app: Flask) -> None:
         if not vault:
             return jsonify({"error": "Vault not found or you don't have access"}), 404
         
-        # Check if beneficiary already exists for this vault
-        existing_beneficiary = Beneficiary.query.filter_by(
-            vault_id=vault.id, username=beneficiary_username).first()
-        if existing_beneficiary:
-            return jsonify({"error": "Beneficiary already exists for this vault"}), 400
+        # Check if any beneficiary already exists for this vault
+        for ben in beneficiaries_data:
+            existing_beneficiary = Beneficiary.query.filter_by(
+                vault_id=vault.id, username=ben.get('username')).first()
+            if existing_beneficiary:
+                return jsonify({"error": f"Beneficiary '{ben.get('username')}' already exists for this vault"}), 400
         
         # Get existing beneficiaries for shares collection
         existing_beneficiaries = Beneficiary.query.filter_by(vault_id=vault.id).all()
         
-        # Create the beneficiary
-        beneficiary = Beneficiary(
-            vault_id=vault.id,
-            username=beneficiary_username,
-            notification_email=beneficiary_email,
-            public_key="placeholder",
-            threshold_index=threshold_index,
-            share_displayed=False
-        )
-        db.session.add(beneficiary)
-        db.session.flush()  # To get the beneficiary ID
+        # Create the new beneficiaries but don't commit yet
+        new_beneficiaries = []
+        for ben in beneficiaries_data:
+            beneficiary = Beneficiary(
+                vault_id=vault.id,
+                username=ben.get('username').lower(),
+                notification_email=ben.get('email').lower(),
+                public_key=ben.get('public_key', "placeholder"),
+                threshold_index=ben.get('threshold_index', 1),
+                share_displayed=False
+            )
+            db.session.add(beneficiary)
+            new_beneficiaries.append(beneficiary)
+        
+        db.session.flush()  # To get the beneficiary IDs
         
         # List to store sensitive data that needs to be wiped
         sensitive_data = []
@@ -559,7 +581,7 @@ def register_routes(app: Flask) -> None:
                 print(f"Successfully reconstructed secret, type: {type(original_secret)}")
                 
                 # Update the vault's share configuration
-                new_total_shares = vault.total_shares + 1
+                new_total_shares = vault.total_shares + len(new_beneficiaries)
                 # Threshold calculation
                 new_threshold = new_total_shares - 1
                 
@@ -579,7 +601,7 @@ def register_routes(app: Flask) -> None:
                 
                 # Store the new shares
                 new_owner_share = None
-                new_beneficiary_share = None
+                new_beneficiary_shares = []
                 existing_beneficiary_shares = []
                 
                 for i, share_value in new_shares:
@@ -608,24 +630,11 @@ def register_routes(app: Flask) -> None:
                         # Save the new owner share to return to them
                         new_owner_share = share_value
                     
-                    elif i == new_total_shares:  # Last share is for the new beneficiary
-                        new_beneficiary_share = share_value
-                        
-                        # We don't store the beneficiary share in plaintext
-                        # Instead we mark it as an external share
-                        key_share = KeyShare(
-                            vault_id=vault.id,
-                            encrypted_share="only the beneficiary has this share",
-                            share_index=i,
-                            share_type="beneficiary",
-                            beneficiary_id=beneficiary.id
-                        )
-                        db.session.add(key_share)
-                    
-                    else:  # Remaining shares are for existing beneficiaries
-                        # Find the appropriate beneficiary for this index
-                        if i - 3 < len(existing_beneficiaries):
-                            existing_beneficiary = existing_beneficiaries[i - 3]
+                    elif i > 2 and i <= 2 + len(existing_beneficiaries):  # Shares for existing beneficiaries
+                        # Get the corresponding existing beneficiary
+                        ben_index = i - 3
+                        if ben_index < len(existing_beneficiaries):
+                            existing_beneficiary = existing_beneficiaries[ben_index]
                             
                             # Add to our list of shares to return
                             existing_beneficiary_shares.append({
@@ -647,26 +656,47 @@ def register_routes(app: Flask) -> None:
                                     beneficiary_id=existing_beneficiary.id
                                 )
                                 db.session.add(key_share)
+                    
+                    else:  # New shares for the new beneficiaries
+                        # Calculate which new beneficiary gets this share
+                        new_ben_index = i - (3 + len(existing_beneficiaries))
+                        if new_ben_index < len(new_beneficiaries):
+                            beneficiary = new_beneficiaries[new_ben_index]
+                            
+                            # Add to our list of shares to return
+                            new_beneficiary_shares.append({
+                                "username": beneficiary.username,
+                                "share": share_value
+                            })
+                            
+                            # Create a key share for the new beneficiary
+                            key_share = KeyShare(
+                                vault_id=vault.id,
+                                encrypted_share="only the beneficiary has this share",
+                                share_index=i,
+                                share_type="beneficiary",
+                                beneficiary_id=beneficiary.id
+                            )
+                            db.session.add(key_share)
                 
                 db.session.commit()
                 
                 # Log event
                 from audit import log_event
-                log_event(user_id, "beneficiary_added", {
+                log_event(user_id, "beneficiaries_added", {
                     "vault_name": vault.vault_name,
                     "vault_id": vault_id,
-                    "beneficiary_username": beneficiary_username,
+                    "beneficiary_count": len(new_beneficiaries),
                     "total_shares": new_total_shares,
                     "threshold": new_threshold
                 })
                 
                 # Return the new configuration with all shares
                 return jsonify({
-                    "message": "Beneficiary added successfully",
+                    "message": f"{len(new_beneficiaries)} beneficiaries added successfully",
                     "vault_name": vault.vault_name,
                     "vault_id": vault_id,
-                    "beneficiary_username": beneficiary_username,
-                    "beneficiary_share": new_beneficiary_share,
+                    "new_beneficiaries": [{"username": ben.username, "share": share} for ben, share in zip(new_beneficiaries, [s["share"] for s in new_beneficiary_shares])],
                     "owner_share": new_owner_share,
                     "existing_beneficiary_shares": existing_beneficiary_shares,
                     "total_shares": new_total_shares,
@@ -685,16 +715,16 @@ def register_routes(app: Flask) -> None:
             # Roll back any changes if there was an error
             db.session.rollback()
             import traceback
-            print(f"Error adding beneficiary: {str(e)}")
+            print(f"Error adding beneficiaries: {str(e)}")
             print(traceback.format_exc())
-            return jsonify({"error": f"Error processing beneficiary: {str(e)}. Please try again."}), 500
+            return jsonify({"error": f"Error processing beneficiaries: {str(e)}. Please try again."}), 500
             
         finally:
             # Securely wipe all sensitive data
             for data in sensitive_data:
                 if data:
                     secure_wipe(data)
-    
+
     @app.route('/api/beneficiary/<int:beneficiary_id>', methods=['DELETE'])
     @login_required
     @require_totp
@@ -777,13 +807,13 @@ def register_routes(app: Flask) -> None:
         if not data:
             return jsonify({"error": "No JSON data received"}), 400
             
-        username = data.get('username')
+        username = data.get('username').lower()
         
         if not username:
             return jsonify({"error": "Username is required"}), 400
         
         # Find the vault
-        vault = Vault.query.filter_by(vault_id=vault_id).first()
+        vault = Vault.query.filter_by(vault_id=vault_id.upper()).first()
         if not vault:
             return jsonify({"error": "Vault not found"}), 404
         
@@ -824,14 +854,14 @@ def register_routes(app: Flask) -> None:
             return jsonify({"error": "No JSON data received"}), 400
             
         request_id = data.get('request_id')
-        username = data.get('username')
+        username = data.get('username').lower()
         authentication_proof = data.get('authentication_proof')
         
         if not all([request_id, username, authentication_proof]):
             return jsonify({"error": "Missing required fields"}), 400
         
         # Find the vault
-        vault = Vault.query.filter_by(vault_id=vault_id).first()
+        vault = Vault.query.filter_by(vault_id=vault_id.upper()).first()
         if not vault:
             return jsonify({"error": "Vault not found"}), 404
         
